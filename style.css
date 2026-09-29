@@ -1,7 +1,7 @@
 #character-reasoner-dialog {
     position: fixed;
     inset: 0;
-    width: min(760px, calc(100vw - 24px));
+    width: min(1180px, calc(100vw - 24px));
     height: min(860px, calc(100dvh - 24px));
     max-width: none;
     max-height: none;
@@ -86,13 +86,25 @@
     font-weight: 700;
 }
 
-#character-reasoner-dialog .cr-main { min-height: 0; overflow-y: auto; }
+#character-reasoner-dialog .cr-main {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+}
 #character-reasoner-dialog .cr-saved {
-    margin: 13px 13px 0;
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    height: calc(100% - 20px);
+    margin: 10px 0 10px 10px;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: stretch;
 }
 #character-reasoner-dialog .cr-saved-header { justify-content: space-between; }
 #character-reasoner-dialog .cr-saved-header > div { min-width: 0; }
-#character-reasoner-dialog .cr-saved-list { display: grid; gap: 7px; max-height: 330px; overflow-y: auto; }
+#character-reasoner-dialog .cr-saved-list { display: grid; gap: 7px; min-height: 0; max-height: none; overflow-y: auto; }
 #character-reasoner-dialog .cr-saved-group {
     border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
     border-radius: 9px;
@@ -148,12 +160,39 @@
 #character-reasoner-dialog .cr-danger { color: #ff8a80; }
 #character-reasoner-dialog .cr-panel {
     display: none;
+    grid-column: 2;
+    grid-row: 1;
     height: 100%;
-    padding: 13px;
+    padding: 10px;
     overflow-y: auto;
     overscroll-behavior: contain;
 }
-#character-reasoner-dialog .cr-panel.active { display: block; }
+#character-reasoner-dialog .cr-panel.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr);
+    grid-template-rows: auto auto auto auto;
+    align-content: start;
+    gap: 9px;
+}
+#character-reasoner-dialog .cr-panel-toolbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+    padding: 0 2px;
+}
+#character-reasoner-dialog .cr-panel-toolbar .menu_button { min-height: 34px; padding: 5px 10px; }
+#character-reasoner-dialog .cr-source-card { grid-column: 1; grid-row: 2; }
+#character-reasoner-dialog .cr-lore-card { grid-column: 1; grid-row: 3; }
+#character-reasoner-dialog .cr-prompt-card { grid-column: 1; grid-row: 4; }
+#character-reasoner-dialog .cr-import {
+    grid-column: 2;
+    grid-row: 2 / span 3;
+    align-self: start;
+    position: sticky;
+    top: 0;
+}
 
 #character-reasoner-dialog .cr-card {
     display: grid;
@@ -178,8 +217,8 @@
     background-color: var(--SmartThemeBlurTintColor, var(--SmartThemeBotMesBlurTintColor));
     border-color: var(--SmartThemeBorderColor);
 }
-#character-reasoner-dialog textarea { resize: vertical; min-height: 180px; }
-#character-reasoner-dialog .cr-output { min-height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; }
+#character-reasoner-dialog textarea { resize: vertical; min-height: 130px; }
+#character-reasoner-dialog .cr-output { min-height: 330px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; }
 #character-reasoner-dialog .cr-sources summary { padding: 6px 0; cursor: pointer; font-weight: 700; }
 #character-reasoner-dialog .cr-source-list { display: grid; gap: 8px; margin-top: 4px; }
 #character-reasoner-dialog .cr-source-item {
@@ -297,6 +336,17 @@
 #character-reasoner-quick-button:hover,
 #character-reasoner-quick-button:focus-visible { opacity: 1; }
 
+@media (max-width: 850px) {
+    #character-reasoner-dialog .cr-main { display: block; overflow-y: auto; }
+    #character-reasoner-dialog .cr-saved { height: auto; margin: 9px 9px 0; max-height: 300px; grid-template-rows: auto auto; }
+    #character-reasoner-dialog .cr-saved-list { max-height: 220px; }
+    #character-reasoner-dialog .cr-panel { height: auto; overflow: visible; }
+    #character-reasoner-dialog .cr-panel.active { display: block; }
+    #character-reasoner-dialog .cr-panel-toolbar { margin-bottom: 9px; }
+    #character-reasoner-dialog .cr-import { position: static; }
+    #character-reasoner-dialog .cr-output { min-height: 230px; }
+}
+
 @media (max-width: 600px) {
     #character-reasoner-dialog {
         width: calc(100vw - 12px);
@@ -305,7 +355,6 @@
     }
     #character-reasoner-dialog .cr-header { padding: 11px 12px 9px; }
     #character-reasoner-dialog .cr-tabs { padding: 7px; gap: 5px; }
-    #character-reasoner-dialog .cr-saved { margin: 9px 9px 0; }
     #character-reasoner-dialog .cr-saved-item { align-items: stretch; flex-direction: column; }
     #character-reasoner-dialog .cr-saved-group > summary { grid-template-columns: auto minmax(0, 1fr); }
     #character-reasoner-dialog .cr-saved-group > summary small { grid-column: 1 / -1; text-align: left; }

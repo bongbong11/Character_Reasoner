@@ -26,7 +26,7 @@ const {
   saveVersion,allSaved,deleteVersion,findGroup,setLoreSelected,
 }=context.__test;
 
-assert.match(COMPILER_PROMPT,/source_set_id/);
+assert.equal(COMPILER_PROMPT.includes('source_set_id'),false);
 assert.match(COMPILER_PROMPT,/Atomic does NOT mean smallest possible unit/);
 assert.match(COMPILER_PROMPT,/maximum 6/);
 assert.match(COMPILER_PROMPT,/IMPORTANT FIELD DISTINCTION/);
@@ -49,11 +49,10 @@ assert.deepEqual(Array.from(built,x=>x.id),['S001','S002','S003']);
 assert.equal(built[2].label,'Book · Entry');
 
 const draft={
-  source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',npc_role:null,
+  entity_type:'persona',entity_name:'Mina',npc_role:null,
   sources:[{id:'S001',label:'페르소나 시트',text:'Calm'}],
 };
 const compiledPrompt=promptText(draft);
-assert.match(compiledPrompt,/"source_set_id": "set-1"/);
 assert.match(compiledPrompt,/ENTITY_NAME: Mina/);
 assert.match(compiledPrompt,/persona represented by \{\{user\}\}/);
 assert.match(compiledPrompt,/S001 · 페르소나 시트/);
@@ -89,22 +88,28 @@ assert.throws(()=>hardValidateRecords([{...base,when:['personality']}],new Set([
 assert.throws(()=>hardValidateRecords([{...base,extra:true}],new Set(['S001'])),/허용되지 않은/);
 
 const validImport=validateImport({
-  source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',records:[base],
-},draft);
+  entity_type:'persona',entity_name:'Mina',records:[base],
+});
 assert.equal(validImport.output.records.length,1);
+assert.equal(validImport.import_log.import_mode,'standalone_json');
+assert.equal(validImport.source_set_id,null);
 const preferenceImport=validateImport({
-  source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',
+  entity_type:'persona',entity_name:'Mina',
   records:[{...base,type:'preference',modality:'preference',knowledge_domain:'none',knowledge_state:'none'}],
-},draft);
+});
 assert.equal(preferenceImport.output.records[0].type,'core');
 assert.equal(preferenceImport.output.records[0].modality,'preference');
 assert.equal(preferenceImport.import_log.normalizations[0].reason,'modality value used as record type');
 assert.throws(()=>validateImport({
-  source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',
+  entity_type:'persona',entity_name:'Mina',
   records:[{...base,type:'tendency',modality:'tendency',knowledge_domain:'none',knowledge_state:'none'}],
-},draft),/type: enum 위반/);
-assert.throws(()=>validateImport({source_set_id:'old',entity_type:'persona',entity_name:'Mina',records:[base]},draft),/source_set_id/);
-assert.throws(()=>validateImport({source_set_id:'set-1',entity_type:'persona',entity_name:'Other',records:[base]},draft),/대상이 일치/);
+}),/type: enum 위반/);
+const unrelatedImport=validateImport({source_set_id:'old',entity_type:'npc',entity_name:'Other',records:[{...base,source_ids:['UNRELATED-1']}]});
+assert.equal(unrelatedImport.output.entity_type,'npc');
+assert.equal(unrelatedImport.output.entity_name,'Other');
+assert.equal(unrelatedImport.source_set_id,'old');
+assert.equal(unrelatedImport.output.records[0].source_ids[0],'UNRELATED-1');
+assert.throws(()=>validateImport({entity_type:'unknown',entity_name:'Other',records:[base]}),/entity_type/);
 
 const metadata={};
 let saves=0;
@@ -138,4 +143,4 @@ setLoreSelected(row,true);
 assert.equal(attributes.get('aria-pressed'),'true');
 assert.equal(classes.has('selected'),true);
 
-console.log('Character Reasoner v0.8.1 regression checks passed.');
+console.log('Character Reasoner v0.8.2 regression checks passed.');

@@ -1,5 +1,5 @@
 const EXT = 'Character Reasoner';
-const EXT_VERSION = '0.8.1';
+const EXT_VERSION = '0.8.2';
 const META_KEY = 'characterReasonerBank';
 const KINDS = ['character', 'persona', 'npc'];
 const KIND_LABEL = { character: '캐릭터', persona: '페르소나', npc: 'NPC' };
@@ -103,7 +103,6 @@ source_ids: only supplied source IDs directly supporting the rule.
 
 Return exactly:
 {
-  "source_set_id": "__SOURCE_SET_ID__",
   "entity_type": "__ENTITY_TYPE__",
   "entity_name": "__ENTITY_NAME__",
   "records": [
@@ -121,13 +120,11 @@ Return exactly:
   ]
 }
 
-Copy source_set_id, entity_type, and entity_name exactly as supplied.
+Copy entity_type and entity_name exactly as supplied.
 Before returning, silently verify source coverage, fidelity, grouping, targets, source IDs, knowledge consistency, and retrieval cues.
 
 ENTITY_TYPE: __ENTITY_TYPE__
 ENTITY_NAME: __ENTITY_NAME__
-SOURCE_SET_ID: __SOURCE_SET_ID__
-
 __ENTITY_GUIDANCE__
 
 SOURCE MATERIAL:
@@ -301,23 +298,22 @@ function sourceMaterial(sources) { return sources.map(x=>x.id+' · '+x.label+'\n
 function replaceToken(text, token, value) { return text.replaceAll(token,()=>String(value)); }
 function promptText(draft) {
   let text=COMPILER_PROMPT;
-  text=replaceToken(text,'__SOURCE_SET_ID__',draft.source_set_id);
   text=replaceToken(text,'__ENTITY_TYPE__',draft.entity_type);
   text=replaceToken(text,'__ENTITY_NAME__',draft.entity_name);
   text=replaceToken(text,'__ENTITY_GUIDANCE__',draft.entity_type==='persona'?PERSONA_GUIDANCE:draft.entity_type==='npc'?npcGuidance(draft.npc_role):'');
   return replaceToken(text,'__SOURCE_MATERIAL__',sourceMaterial(draft.sources));
 }
-function newDraft(kind, storedSources=null, storedName='') {
+function newDraft(kind) {
   syncChat();
-  const name=normalized(storedName||document.getElementById('cr-'+kind+'-name')?.value), sheet=document.getElementById('cr-'+kind+'-sheet')?.value.trim();
+  const name=normalized(document.getElementById('cr-'+kind+'-name')?.value), sheet=document.getElementById('cr-'+kind+'-sheet')?.value.trim();
   if(!name)throw new Error(KIND_LABEL[kind]+' 이름을 입력하세요.');
-  const sources=storedSources?structuredClone(storedSources):buildSources(kind,sheet,chosenLore(kind));
+  const sources=buildSources(kind,sheet,chosenLore(kind));
   if(!sources.length)throw new Error('시트 또는 선택한 로어북 원문이 필요합니다.');
-  return {source_set_id:uid(),entity_type:kind,entity_name:name,npc_role:kind==='npc'?(document.querySelector('input[name="cr-npc-role"]:checked')?.value||'mixed'):null,sources,created_at:new Date().toISOString()};
+  return {entity_type:kind,entity_name:name,npc_role:kind==='npc'?(document.querySelector('input[name="cr-npc-role"]:checked')?.value||'mixed'):null,sources,created_at:new Date().toISOString()};
 }
-async function copyPrompt(kind, storedSources=null, storedName='') {
+async function copyPrompt(kind) {
   try {
-    const draft=newDraft(kind,storedSources,storedName); drafts[kind]=draft;
+    const draft=newDraft(kind); drafts[kind]=draft;
     await navigator.clipboard.writeText(promptText(draft));
     status(kind,'분석 명령문을 복사했습니다. 공홈 AI에 붙여넣은 뒤 JSON 결과를 가져오세요.');
     toast('분석 명령문을 복사했습니다.','success');
@@ -398,7 +394,10 @@ function validateRecordSchema(records) {
 }
 function validateSourceIds(records, allowedIds) {
   records.forEach((record,index)=>{
-    for(const id of record.source_ids)if(typeof id!=='string'||!allowedIds.has(id))throw new Error('record['+index+'].source_ids: 존재하지 않는 '+String(id));
+    for(const id of record.source_ids) {
+      if(typeof id!=='string'||!id.trim())throw new Error('record['+index+'].source_ids: 비어 있거나 문자열이 아닌 ID');
+      if(allowedIds&&!allowedIds.has(id))throw new Error('record['+index+'].source_ids: 존재하지 않는 '+String(id));
+    }
   });
 }
 function validateKnowledgeContract(records) {
@@ -415,17 +414,22 @@ function hardValidateRecords(records, allowedIds) {
   validateKnowledgeContract(records);
   return {records,normalizations,when_cleanup};
 }
-function validateImport(value,draft) {
-  if(!draft)throw new Error('먼저 분석 명령문 복사를 눌러 현재 Source 묶음을 만드세요.');
+function validateImport(value) {
   const data=extractJsonObject(value);
+  if(!KINDS.includes(data.entity_type))throw new Error('entity_type은 character, persona, npc 중 하나여야 합니다.');
+  const entityName=normalized(data.entity_name);
+  if(!entityName)throw new Error('entity_name이 없습니다.');
   const records=structuredClone(data.records);
-  const validation=hardValidateRecords(records,new Set(draft.sources.map(x=>x.id)));
-  if(data.source_set_id!==draft.source_set_id)throw new Error('source_set_id가 현재 복사한 명령문과 다릅니다.');
-  if(data.entity_type!==draft.entity_type)throw new Error('entity_type이 현재 대상과 다릅니다.');
-  if(normalized(data.entity_name).toLocaleLowerCase()!==normalized(draft.entity_name).toLocaleLowerCase())throw new Error('현재 대상: '+draft.entity_name+'\n가져온 JSON: '+String(data.entity_name||'')+'\n대상이 일치하지 않아 저장하지 않았습니다.');
+  const validation=hardValidateRecords(records,null);
   return {
-    output:{entity_type:draft.entity_type,entity_name:draft.entity_name,records},
-    import_log:{normalizations:validation.normalizations,when_cleanup:validation.when_cleanup},
+    output:{entity_type:data.entity_type,entity_name:entityName,records},
+    source_set_id:normalized(data.source_set_id)||null,
+    import_log:{
+      import_mode:'standalone_json',
+      source_validation:'structural source IDs only',
+      normalizations:validation.normalizations,
+      when_cleanup:validation.when_cleanup,
+    },
   };
 }
 async function importResult(kind, raw) {
@@ -433,13 +437,14 @@ async function importResult(kind, raw) {
     syncChat();
     const saveName=normalized(document.getElementById('cr-'+kind+'-save-name').value);
     if(!saveName)throw new Error('저장 이름을 입력하세요. 같은 이름은 날짜별 버전으로 모입니다.');
-    const imported=validateImport(raw,drafts[kind]), output=imported.output, now=new Date().toISOString();
-    const version={id:uid(),saved_at:now,entity_name:output.entity_name,source_set_id:drafts[kind].source_set_id,source_method:'external_ai',npc_role:drafts[kind].npc_role,import_log:imported.import_log,output,sources:structuredClone(drafts[kind].sources)};
+    const imported=validateImport(raw), output=imported.output, now=new Date().toISOString(), targetKind=output.entity_type;
+    const version={id:uid(),saved_at:now,entity_name:output.entity_name,source_set_id:imported.source_set_id,source_method:'external_json_import',npc_role:null,import_log:imported.import_log,output,sources:[]};
     if(imported.import_log.normalizations.length)console.info('['+EXT+'] import normalization',structuredClone(imported.import_log.normalizations));
-    saveVersion(kind,saveName,version);
-    document.getElementById('cr-'+kind+'-json').value=JSON.stringify({...output,source_set_id:version.source_set_id},null,2);
+    if(imported.import_log.import_mode==='standalone_json')console.info('['+EXT+'] standalone JSON import',structuredClone(imported.import_log));
+    saveVersion(targetKind,saveName,version);
+    document.getElementById('cr-'+kind+'-json').value=JSON.stringify(version.source_set_id?{...output,source_set_id:version.source_set_id}:output,null,2);
     const normalizedCount=imported.import_log.normalizations.length;
-    status(kind,'✓ '+output.entity_name+' · '+output.records.length+'개 레코드를 “'+saveName+'”에 날짜별로 저장했습니다.'+(normalizedCount?'\n명백한 type field-slot 오류 '+normalizedCount+'개를 core로 보정했습니다.':''));
+    status(kind,'✓ '+output.entity_name+' · '+output.records.length+'개 레코드를 '+KIND_LABEL[targetKind]+' “'+saveName+'”에 날짜별로 저장했습니다.\n명령문 상태와 관계없이 독립 JSON으로 저장했습니다.'+(normalizedCount?'\n명백한 type field-slot 오류 '+normalizedCount+'개를 core로 보정했습니다.':''));
     renderSaved(); toast('검증된 결과를 저장했습니다.','success');
   } catch(e){status(kind,'저장되지 않았습니다.\n'+e.message,true);toast('결과를 저장하지 못했습니다.','error');}
 }
@@ -457,7 +462,7 @@ function renderSaved() {
   host.innerHTML=rows.map(({kind,group})=>{
     const versions=group.versions||[], latest=versions[0], entity=latest?.entity_name||'';
     const versionRows=versions.map((v,i)=>'<div class="cr-version"><div><b>'+esc(displayDate(v.saved_at))+'</b><small>'+esc(v.entity_name)+' · '+(v.output?.records?.length||0)+' records'+(i===0?' · 최신':'')+'</small></div><div class="cr-saved-actions"><button class="menu_button" data-action="view" data-kind="'+kind+'" data-group="'+esc(group.id)+'" data-version="'+esc(v.id)+'">보기</button><button class="menu_button" data-action="copy" data-kind="'+kind+'" data-group="'+esc(group.id)+'" data-version="'+esc(v.id)+'">복사</button><button class="menu_button cr-danger" data-action="delete" data-kind="'+kind+'" data-group="'+esc(group.id)+'" data-version="'+esc(v.id)+'">삭제</button></div></div>').join('');
-    return '<details class="cr-saved-group"><summary><span class="cr-tag cr-tag-'+kind+'">'+KIND_LABEL[kind]+'</span><b>'+esc(group.name)+'</b><small>'+esc(entity)+' · '+versions.length+'개 날짜본</small></summary><div class="cr-group-tools"><button class="menu_button" data-action="rebuild" data-kind="'+kind+'" data-group="'+esc(group.id)+'" data-version="'+esc(latest?.id||'')+'">최신 Source로 다시 만들기</button></div>'+versionRows+'</details>';
+    return '<details class="cr-saved-group"><summary><span class="cr-tag cr-tag-'+kind+'">'+KIND_LABEL[kind]+'</span><b>'+esc(group.name)+'</b><small>'+esc(entity)+' · '+versions.length+'개 날짜본</small></summary>'+versionRows+'</details>';
   }).join('');
 }
 function savedVersion(kind,groupId,versionId) { return findGroup(kind,groupId)?.versions?.find(x=>x.id===versionId); }
@@ -472,17 +477,13 @@ async function savedAction(event) {
     if(version&&confirm('“'+group.name+'”의 '+displayDate(version.saved_at)+' 저장본을 삭제할까요?')){deleteVersion(kind,groupId,versionId);renderSaved();}
     return;
   }
-  if(action==='copy'&&version){await navigator.clipboard.writeText(JSON.stringify({...version.output,source_set_id:version.source_set_id},null,2));toast('저장본 JSON을 복사했습니다.','success');return;}
-  if(action==='rebuild'&&version) {
-    activateTab(kind); document.getElementById('cr-'+kind+'-save-name').value=group.name;
-    document.getElementById('cr-'+kind+'-name').value=version.entity_name;
-    await copyPrompt(kind,version.sources,version.entity_name); return;
-  }
+  if(action==='copy'&&version){const exported=version.source_set_id?{...version.output,source_set_id:version.source_set_id}:version.output;await navigator.clipboard.writeText(JSON.stringify(exported,null,2));toast('저장본 JSON을 복사했습니다.','success');return;}
   if(action==='view'&&version) {
     activateTab(kind);
     document.getElementById('cr-'+kind+'-save-name').value=group.name;
     document.getElementById('cr-'+kind+'-name').value=version.entity_name;
-    document.getElementById('cr-'+kind+'-json').value=JSON.stringify({...version.output,source_set_id:version.source_set_id},null,2);
+    const exported=version.source_set_id?{...version.output,source_set_id:version.source_set_id}:version.output;
+    document.getElementById('cr-'+kind+'-json').value=JSON.stringify(exported,null,2);
     status(kind,'저장본 · '+group.name+' · '+displayDate(version.saved_at));
   }
 }
@@ -491,11 +492,19 @@ function deleteAllSaved() {
   if(!count)return;
   if(confirm('이 채팅방의 저장본 '+count+'개를 모두 삭제할까요?')){ctx().chatMetadata[META_KEY]=emptyBank();persistBank();renderSaved();}
 }
+function resetEditor(kind) {
+  const name=document.getElementById('cr-'+kind+'-name'), sheet=document.getElementById('cr-'+kind+'-sheet'), json=document.getElementById('cr-'+kind+'-json'), saveName=document.getElementById('cr-'+kind+'-save-name');
+  if((name.value.trim()||sheet.value.trim()||json.value.trim()||saveName.value.trim())&&!confirm('현재 입력 중인 내용을 비우고 새 항목을 시작할까요?'))return;
+  name.value=''; sheet.value=''; json.value=''; saveName.value='';
+  document.querySelectorAll('#cr-'+kind+'-lore .cr-lore-item').forEach(row=>setLoreSelected(row,false));
+  if(kind==='npc'){const mixed=document.querySelector('input[name="cr-npc-role"][value="mixed"]');if(mixed)mixed.checked=true;}
+  drafts[kind]=null; status(kind,'새 항목을 입력할 수 있습니다.');
+}
 
 function panel(kind,title) {
   const sheetButton=kind!=='npc'?'<button id="cr-'+kind+'-sheet-load" class="menu_button">현재 '+title+' 시트 가져오기</button>':'';
   const role=kind==='npc'?'<div><label>NPC 역할</label><div class="cr-role"><label><input type="radio" name="cr-npc-role" value="ally"> 선역</label><label><input type="radio" name="cr-npc-role" value="antagonist"> 악역</label><label><input type="radio" name="cr-npc-role" value="mixed" checked> 양립/혼합</label></div></div>':'';
-  return '<section class="cr-panel '+(kind==='character'?'active':'')+'" data-kind="'+kind+'"><div class="cr-card"><label>'+title+' 이름</label><input id="cr-'+kind+'-name" class="text_pole" autocomplete="off" placeholder="이름"><div class="cr-row cr-sheet-heading"><label>'+title+' 시트 원본</label>'+sheetButton+'</div><textarea id="cr-'+kind+'-sheet" class="text_pole" placeholder="원본 시트를 그대로 붙여 넣으세요."></textarea>'+role+'</div><div class="cr-card"><div class="cr-row"><button id="cr-'+kind+'-lore-load" class="menu_button">'+(kind==='npc'?'로어북 목록 가져오기':'연결 로어북 가져오기')+'</button><button id="cr-'+kind+'-all" class="menu_button">전체 선택/해제</button></div><p class="cr-help">체크한 항목만 Source에 포함됩니다.</p><div id="cr-'+kind+'-lore" class="cr-lore-list"><div class="cr-help">아직 불러오지 않았습니다.</div></div></div><div class="cr-card"><button id="cr-'+kind+'-prompt" class="menu_button cr-compile">분석 명령문 복사</button><p class="cr-help">공홈 AI에 붙여넣고 반환된 JSON을 아래에 가져오세요. API 연결은 사용하지 않습니다.</p></div><div class="cr-card cr-import"><label>저장 이름</label><input id="cr-'+kind+'-save-name" class="text_pole" autocomplete="off" placeholder="예: 루카스 설정 정리"><p class="cr-help">같은 저장 이름은 한곳에 모이고, 저장할 때마다 날짜별 버전이 추가됩니다.</p><label>AI 분석 결과 가져오기</label><textarea id="cr-'+kind+'-json" class="text_pole cr-output" placeholder="JSON을 붙여넣거나 .json 파일을 끌어놓으세요."></textarea><div class="cr-row"><button id="cr-'+kind+'-import" class="menu_button">검증 후 저장</button><button id="cr-'+kind+'-file-button" class="menu_button">JSON 파일 불러오기</button><input id="cr-'+kind+'-file" type="file" accept=".json,application/json" hidden></div><div id="cr-'+kind+'-status" class="cr-status">대기</div></div></section>';
+  return '<section class="cr-panel '+(kind==='character'?'active':'')+'" data-kind="'+kind+'"><div class="cr-panel-toolbar"><b>'+title+' 관리</b><button id="cr-'+kind+'-reset" class="menu_button">새 항목 입력</button></div><div class="cr-card cr-source-card"><label>'+title+' 이름</label><input id="cr-'+kind+'-name" class="text_pole" autocomplete="off" placeholder="이름"><div class="cr-row cr-sheet-heading"><label>'+title+' 시트 원본</label>'+sheetButton+'</div><textarea id="cr-'+kind+'-sheet" class="text_pole" placeholder="원본 시트를 그대로 붙여 넣으세요."></textarea>'+role+'</div><div class="cr-card cr-lore-card"><div class="cr-row"><button id="cr-'+kind+'-lore-load" class="menu_button">'+(kind==='npc'?'로어북 목록 가져오기':'연결 로어북 가져오기')+'</button><button id="cr-'+kind+'-all" class="menu_button">전체 선택/해제</button></div><p class="cr-help">체크한 항목만 Source에 포함됩니다.</p><div id="cr-'+kind+'-lore" class="cr-lore-list"><div class="cr-help">아직 불러오지 않았습니다.</div></div></div><div class="cr-card cr-prompt-card"><button id="cr-'+kind+'-prompt" class="menu_button cr-compile">분석 명령문 복사</button><p class="cr-help">공홈 AI에 붙여넣고 반환된 JSON을 아래에 가져오세요. API 연결은 사용하지 않습니다.</p></div><div class="cr-card cr-import"><label>저장 이름</label><input id="cr-'+kind+'-save-name" class="text_pole" autocomplete="off" placeholder="예: 루카스 설정 정리"><p class="cr-help">같은 저장 이름은 한곳에 모이고, 저장할 때마다 날짜별 버전이 추가됩니다.</p><label>AI 분석 결과 가져오기</label><textarea id="cr-'+kind+'-json" class="text_pole cr-output" placeholder="JSON을 붙여넣거나 .json 파일을 끌어놓으세요."></textarea><div class="cr-row"><button id="cr-'+kind+'-import" class="menu_button">검증 후 저장</button><button id="cr-'+kind+'-file-button" class="menu_button">JSON 파일 불러오기</button><input id="cr-'+kind+'-file" type="file" accept=".json,application/json" hidden></div><div id="cr-'+kind+'-status" class="cr-status">대기</div></div></section>';
 }
 function makeDialog() {
   if(dlg)return;
@@ -508,6 +517,7 @@ function makeDialog() {
   dlg.querySelectorAll('.cr-tabs button').forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
   for(const kind of KINDS) {
     document.getElementById('cr-'+kind+'-prompt').onclick=()=>void copyPrompt(kind);
+    document.getElementById('cr-'+kind+'-reset').onclick=()=>resetEditor(kind);
     document.getElementById('cr-'+kind+'-lore-load').onclick=()=>void loadLore(kind);
     document.getElementById('cr-'+kind+'-all').onclick=()=>{const rows=[...document.querySelectorAll('#cr-'+kind+'-lore .cr-lore-item')],on=rows.some(x=>x.getAttribute('aria-pressed')!=='true');rows.forEach(x=>setLoreSelected(x,on));drafts[kind]=null;};
     document.getElementById('cr-'+kind+'-import').onclick=()=>void importResult(kind,document.getElementById('cr-'+kind+'-json').value);
