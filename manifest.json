@@ -1,0 +1,14 @@
+{
+  "display_name": "Character Reasoner",
+  "loading_order": 115,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "bongbong11",
+  "version": "0.1.0",
+  "homePage": "https://github.com/bongbong11/Character_Reasoner",
+  "auto_update": true,
+  "minimum_client_version": "1.18.0"
+}
