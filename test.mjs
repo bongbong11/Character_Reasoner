@@ -60,6 +60,7 @@ assert.match(compiledPrompt,/S001 · 페르소나 시트/);
 
 assert.equal(JSON.stringify(extractJsonObject('{"a":1}')),JSON.stringify({a:1}));
 assert.equal(JSON.stringify(extractJsonObject('Here is JSON:\n```json\n{"a":"} inside","b":{"c":2}}\n```')),JSON.stringify({a:'} inside',b:{c:2}}));
+assert.equal(extractJsonObject('Example: {"example":true}\nFinal:\n```json\n{"entity_type":"npc","entity_name":"Mina","records":[]}\n```').entity_name,'Mina');
 assert.throws(()=>extractJsonObject('no object'),/찾지 못했습니다/);
 
 const cleaned=cleanWhen([' after   heat ','After Heat','personality','what Lucas knows about himself','one two three four five six seven']);
@@ -92,6 +93,9 @@ const validImport=validateImport({
   entity_type:'persona',entity_name:'Mina',records:[base],
 });
 assert.equal(validImport.output.records.length,1);
+assert.equal(JSON.stringify(validImport.output.intimacy_reference),JSON.stringify({text:'',source_ids:[]}));
+assert.equal(JSON.stringify(validateImport({entity_type:'npc',entity_name:'Mina',intimacy_reference:{text:'Mina has a stated limit.',source_ids:['S001']},records:[]}).output.intimacy_reference),JSON.stringify({text:'Mina has a stated limit.',source_ids:['S001']}));
+assert.throws(()=>validateImport({entity_type:'npc',entity_name:'Mina',intimacy_reference:{text:'Unsupported.',source_ids:[]},records:[]}),/intimacy_reference/);
 assert.equal(validImport.import_log.import_mode,'standalone_json');
 assert.equal(validImport.source_set_id,null);
 const preferenceImport=validateImport({
@@ -144,4 +148,4 @@ setLoreSelected(row,true);
 assert.equal(attributes.get('aria-pressed'),'true');
 assert.equal(classes.has('selected'),true);
 
-console.log('Character Reasoner v0.8.2 regression checks passed.');
+console.log('Character Reasoner v0.9.0 regression checks passed.');

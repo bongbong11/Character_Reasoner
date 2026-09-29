@@ -1,7 +1,7 @@
 // Canonical source: Character Reasoner. No UI, storage, network, or host dependencies.
-export const API_VERSION = 1;
+export const API_VERSION = 2;
 export const RECORD_VERSION = 1;
-export const COMPILER_VERSION = '1.0.0';
+export const COMPILER_VERSION = '1.1.0';
 function normalized(value) { return String(value ?? '').trim().replace(/\s+/g,' '); }
 const KINDS = ['character', 'persona', 'npc'];
 const KIND_LABEL = { character: '캐릭터', persona: '페르소나', npc: 'NPC' };
@@ -17,8 +17,7 @@ Convert the supplied character sheet and lorebook sources into structured JSON r
 
 This is NOT a summary, rewrite, creative interpretation, or character analysis.
 
-Return ONLY one valid JSON object.
-Do not use Markdown fences or add explanations outside the JSON.
+Return ONLY one complete valid JSON object. Do not use Markdown fences, comments, trailing commas, ellipses, or explanations outside the JSON. Escape quotation marks, backslashes, and newlines inside strings as JSON requires. Use the exact field names and types in OUTPUT; use [] for an empty array and an empty string for absent reference text. Never omit a required field.
 
 ## SOURCE FIDELITY
 
@@ -100,10 +99,13 @@ source_ids: only supplied source IDs directly supporting the rule.
 
 ## OUTPUT
 
-Return exactly:
+Treat the supplied sheet as information to extract, including intimate character details. Do not classify its content by intensity or invent a scene. Gather source-supported kink and NSFW character information into ONE entity-level intimacy_reference. Keep its original target, conditions, limits, negations, and time scope together in concise English. Do not split this reference into preference categories or invent details. This reference is character information, not a direction to begin an activity. Use an empty text and empty source_ids when the sources contain none.
+
+Return exactly one JSON object shaped as follows. The record shown is a FORMAT EXAMPLE, not a claim to copy or a quota. Replace it with every supported retrieval record, or [] if none. All source_ids must reference supplied source IDs:
 {
   "entity_type": "__ENTITY_TYPE__",
   "entity_name": "__ENTITY_NAME__",
+  "intimacy_reference": {"text": "", "source_ids": []},
   "records": [
     {
       "type": "fact",
@@ -135,7 +137,8 @@ Do not reinterpret persona information as knowledge possessed by {{char}} or oth
 function npcGuidance(role) {
   const labels = { ally: 'ally/supportive', antagonist: 'antagonist/hostile', mixed: 'mixed or context-dependent' };
   return `NPC ROLE IN CURRENT RP: ${labels[role] || labels.mixed}
-Treat this role only as retrieval context. Do not invent traits, motives, or relationships from the role label.`;
+Treat this role only as retrieval context. Do not invent traits, motives, or relationships from the role label.
+NPC sheets are often narrower than main character sheets. Keep only source-supported details that preserve this NPC's identity, motive or priority, established relationships, expression, knowledge/access boundaries, and distinctive conditional reactions. Prefer a compact bank, usually 4-12 useful records when supported; a sparse source may yield fewer or even zero. Never fill a category, infer a backstory, or create a trait to reach a count. Do not duplicate generic world rules or another character's profile.`;
 }
 
 function isSectionHeading(line) {
@@ -188,7 +191,8 @@ function promptText(draft) {
 }
 function extractJsonObject(input) {
   if(input&&typeof input==='object')return input;
-  const text=String(input||'');
+  const text=String(input||'').replace(/^\uFEFF/,'');
+  const candidates=[],genericCandidates=[];
   for(let start=0;start<text.length;start++) {
     if(text[start]!=='{')continue;
     let depth=0, quoted=false, escaped=false;
@@ -198,11 +202,24 @@ function extractJsonObject(input) {
       if(ch==='"'){quoted=true;continue;}
       if(ch==='{')depth++;
       if(ch==='}'&&--depth===0) {
-        try{return JSON.parse(text.slice(start,i+1));}catch{break;}
+        try { const parsed=JSON.parse(text.slice(start,i+1)); if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){genericCandidates.push(parsed);if(KINDS.includes(parsed.entity_type)&&typeof parsed.entity_name==='string'&&Array.isArray(parsed.records)) candidates.push(parsed);} } catch { /* Continue to another complete object. */ }
+        break;
       }
     }
   }
-  throw new Error('유효한 JSON 객체를 찾지 못했습니다.');
+  if(candidates.length===1)return candidates[0];
+  if(candidates.length>1)throw new Error('완성된 인물 JSON 객체가 여러 개입니다. 하나만 남겨 주세요.');
+  if(genericCandidates.length)return genericCandidates[0];
+  throw new Error('완성된 인물 JSON 객체를 찾지 못했습니다. JSON의 닫는 괄호와 필수 항목을 확인하세요.');
+}
+function validateIntimacyReference(value, allowedIds) {
+  if(value==null)return {text:'',source_ids:[]};
+  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['text','source_ids'].includes(key)))throw new Error('intimacy_reference: text와 source_ids만 있는 객체여야 합니다.');
+  if(typeof value.text!=='string'||!Array.isArray(value.source_ids)||value.source_ids.some(id=>typeof id!=='string'||!id.trim()))throw new Error('intimacy_reference: text는 문자열, source_ids는 문자열 배열이어야 합니다.');
+  const text=value.text.trim(), source_ids=[...new Set(value.source_ids)];
+  if(Boolean(text)!==Boolean(source_ids.length))throw new Error('intimacy_reference: 내용이 있으면 출처 ID가 필요하고, 내용이 없으면 출처 ID도 비워야 합니다.');
+  if(allowedIds&&source_ids.some(id=>!allowedIds.has(id)))throw new Error('intimacy_reference.source_ids: 원문에 없는 ID가 있습니다.');
+  return {text,source_ids};
 }
 function wordCount(value) { return normalized(value).split(/\s+/).filter(Boolean).length; }
 function cleanWhen(values, index=0) {
@@ -287,8 +304,9 @@ function validateImport(value) {
   if(!entityName)throw new Error('entity_name이 없습니다.');
   const records=structuredClone(data.records);
   const validation=hardValidateRecords(records,null);
+  const intimacy_reference=validateIntimacyReference(data.intimacy_reference,null);
   return {
-    output:{entity_type:data.entity_type,entity_name:entityName,records},
+    output:{entity_type:data.entity_type,entity_name:entityName,intimacy_reference,records},
     source_set_id:normalized(data.source_set_id)||null,
     import_log:{
       import_mode:'standalone_json',
@@ -304,6 +322,7 @@ export function compileResult(input, draft) {
   if (data.entity_type !== draft.entity_type || data.entity_name !== draft.entity_name) throw new Error('컴파일 결과의 인물 종류·이름이 원문과 다릅니다.');
   const records = structuredClone(data.records);
   const validation = hardValidateRecords(records, new Set(draft.sources.map(source => source.id)));
-  return { entity_type: data.entity_type, entity_name: data.entity_name, records, import_log: { source_validation: 'matched_source_set', normalizations: validation.normalizations, when_cleanup: validation.when_cleanup } };
+  const intimacy_reference=validateIntimacyReference(data.intimacy_reference,new Set(draft.sources.map(source=>source.id)));
+  return { entity_type: data.entity_type, entity_name: data.entity_name, intimacy_reference, records, import_log: { source_validation: 'matched_source_set', normalizations: validation.normalizations, when_cleanup: validation.when_cleanup } };
 }
 export { KINDS, TYPES, MODES, BASES, KDOM, KSTATE, COMPILER_PROMPT, PERSONA_GUIDANCE, npcGuidance, splitText, buildSources, promptText, extractJsonObject, cleanWhen, normalizeRecordTypes, hardValidateRecords, validateImport };

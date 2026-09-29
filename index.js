@@ -1,6 +1,6 @@
 import { API_VERSION, RECORD_VERSION, COMPILER_VERSION, COMPILER_PROMPT, PERSONA_GUIDANCE, npcGuidance, splitText, buildSources, promptText, extractJsonObject, cleanWhen, normalizeRecordTypes, hardValidateRecords, validateImport } from './core/index.js';
 const EXT = 'Character Reasoner';
-const EXT_VERSION = '0.8.2';
+const EXT_VERSION = '0.9.0';
 const META_KEY = 'characterReasonerBank';
 const KINDS = ['character','persona','npc'];
 const KIND_LABEL = { character: '캐릭터', persona: '페르소나', npc: 'NPC' };

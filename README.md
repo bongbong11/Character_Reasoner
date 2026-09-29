@@ -66,6 +66,7 @@ JSON 코드펜스와 JSON 앞뒤의 짧은 설명문은 저장할 때 자동으�
 각 날짜본에는 다음 정보가 저장됩니다.
 
 - 검증된 JSON records
+- 원문에 근거가 있을 때만 작성한 단일 `intimacy_reference`와 출처 ID
 - entity 종류와 이름
 - 저장 시각
 - JSON에 포함된 `source_set_id`가 있으면 그 값
