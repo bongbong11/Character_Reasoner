@@ -10,63 +10,111 @@ const lore = { character: [], persona: [] };
 const currentRuns = { character: null, persona: null, npc: null };
 let dlg, service, wi, personas;
 
-const PROMPT = [
-'You are a character-sheet compiler.',
-'',
-'Convert the supplied source material into compact retrieval records for later roleplay use.',
-'This is NOT summarization. Do not write a profile, overview, analysis, explanation, biography, commentary, or prose introduction.',
-'',
-'Use only these information types:',
-'- fact: identity, family, physical, biological, biographical, status, affiliation',
-'- core: persistent temperament, preferences, general behavioral tendencies',
-'- value: motives, priorities, values, goals, things protected or avoided',
-'- relationship: target-specific trust, attachment, hostility, authority, expectations, dependency, boundaries',
-'- knowledge: what the entity knows, believes, suspects, doubts, misunderstands, or explicitly does not know',
-'- reaction: responses to specific pressures, threats, events, violations, or situations',
-'- expression: speech, emotional display, affection style, conflict style, social presentation',
-'- boundary: explicit contrasts, negations, limits, exceptions, or distinctions important for preventing mischaracterization',
-'- capability: skills, authority, resources, responsibilities, access, competence, limitations',
-'',
-'SOURCE FIDELITY',
-'Use only information supported by the supplied sources. Never invent hidden motives, fears, emotional causes, knowledge, relationships, preferences, prohibitions, competence, or moral qualities.',
-'A minimal behavioral implication is allowed only when needed to operationalize an explicitly stated trait. Do not add psychological explanations.',
-'Every concrete status, classification, subtype, rank, relationship, event, institution, diagnosis, test, ability, and historical fact in a record must be directly recoverable from its cited sources.',
-'Do not import genre conventions, Omegaverse conventions, general knowledge, or plausible missing details. Source "alpha" supports only "alpha", never "dominant alpha", "prime alpha", a rare subtype, unusual power, a hospital test, a diagnosis, a future confirmation, or a discovery event.',
-'Preserve epistemic force, alternatives, frequency, and modality exactly. Never change seemed to was, almost seemed to certainty, may/might to does, probably to definitely, suspected to knew, apparent to confirmed, sometimes to habit, or occasional to a general tendency.',
-'Never change OR into AND. Preserve words such as seemed, almost, or, may, might, probably, apparent, sometimes, and occasional when they materially qualify a claim.',
-'Do not invent causality because statements are adjacent. Never add because, due to, born from, therefore, or another causal link unless a cited source explicitly states that link.',
-'Do not generalize behavior toward one person into general personality. Do not treat sheet information as knowledge automatically possessed by the entity.',
-'Do not turn a single isolated event into a permanent trait unless the source presents it as characteristic. Preserve contradictions instead of resolving them.',
-'',
-'AUTHORIAL / META DIRECTIVES',
-'Omit author instructions, narration rules, scene-writing rules, output-style instructions, pacing instructions, genre instructions, RP-model directives, and operational directions such as "do not speak for the user".',
-'Never convert those directives into in-world personality, behavior, reaction, preference, knowledge, or boundaries. Extract one only when the source explicitly says the entity personally prefers or performs it in-world.',
-'Forbidden examples include: progress sex scenes slowly; focus on realism; mention contraception when relevant; write in third person; do not speak for the user.',
-'',
-'TEMPORAL / ROLE SCOPE',
-'Preserve scope limited to a former job, childhood, youth, one relationship, one exceptional event, one historical period, or one special condition.',
-'Do not promote past or role-bound behavior into a current general trait. Prefer "As a bouncer, he enjoyed occasional scuffles with patrons who resisted removal" over "He enjoys fighting people who defy him."',
-'Keep person-, family-, employer-, and relationship-specific facts target-specific. Do not turn one family trusting someone because he did not pry into a rule about all clients.',
-'',
-'RETRIEVAL ATOMICITY',
-'Split when target, trigger, information type, knowledge state, temporal scope, modality, or behavioral consequence materially differ.',
-'Within knowledge, split independently retrievable propositions: knowing fact A, knowing B concealed A, and knowing C\'s motive belong in separate records unless they cannot stand alone.',
-'Keep information together when separation would destroy a contrast, qualification, condition, exception, or dependency.',
-'Do not create one record per adjective. Merge adjacent traits if they share scope and retrieval circumstances and separating them gives no runtime value.',
-'A record is too broad if its retrieval cues describe unrelated situations. A record is too narrow if another adjacent record is almost always required to preserve meaning.',
-'',
-'OUTPUT',
-'Write rule and when values in concise English regardless of source language; preserve proper names exactly.',
-'target: exact named person/group when target-specific, otherwise empty string.',
-'when: 1-5 concrete retrieval cues, each 1-4 words, answering "what scene or conversation should retrieve this record?" Prefer concrete people, situations, actions, pressures, and relationship topics.',
-'Never use generic cues such as personality, background, family history, behavior, or information. Prefer cues such as parents, childhood, alpha upbringing, or family resentment when supported.',
-'rule: one compact standalone statement, preferably 6-20 words. No explanation, examples, or literary prose.',
-'basis: explicit when directly stated; direct_inference only for the minimum behavioral implication of explicit source material.',
-'source_ids: cite only supplied source IDs that directly support the record. Every core claim in the record must be verifiable in at least one cited source.',
-'For knowledge records set knowledge_domain and knowledge_state precisely. For all other types set both to none.',
-'Remove semantic duplicates. Omit decorative details that cannot materially affect portrayal, continuity, knowledge, relationships, or plausible behavior.',
-'Do not create record IDs. Do not output importance scores. Do not output fields outside the schema.'
-].join('\n');
+const PROMPT = `You are a source-faithful character-sheet compiler.
+
+Convert the supplied character sheet and selected lorebook material into compact retrieval records for later roleplay use.
+
+This is NOT summarization or character analysis. Do not write an overview, explanation, biography, commentary, or creative interpretation. Return only the structured records required by the schema.
+
+## Goal
+
+Each record must preserve one independently retrievable piece of characterization that can materially affect portrayal, relationships, knowledge, capability, continuity, or behavior.
+
+Use only information supported by the supplied sources.
+
+## Types
+
+- fact: concrete identity, physical, biological, family, status, biographical, historical, possession, or living facts
+- core: persistent general temperament, preferences, habits, or behavioral tendencies
+- value: motives, priorities, principles, goals, worldview, or persistent values
+- relationship: target-specific attraction, attachment, trust, hostility, protectiveness, expectations, authority, dependency, or distance
+- knowledge: one fact, belief, suspicion, misunderstanding, doubt, or explicit lack of knowledge
+- reaction: response to a specific trigger, condition, event, pressure, or physiological state
+- expression: speech, emotional display, affection style, gestures, conflict style, or social presentation
+- boundary: explicit negation, exception, contrast, prohibition, or characterization limit
+- capability: skill, sensory ability, authority, resource, access, competence, or limitation
+
+## Source Fidelity
+
+Every substantive claim must be recoverable from its cited source.
+
+Do not import genre conventions, common knowledge, likely implications, unstated world rules, or information from outside the supplied sources.
+
+Do not invent or infer hidden motives, causes, feelings, knowledge, relationships, abilities, classifications, diagnoses, events, or future developments.
+
+Preserve the source's exact strength and scope: uncertainty stays uncertain; or stays or; occasional behavior does not become a general habit; belief or suspicion does not become fact.
+
+Do not silently correct apparent mistakes, unusual terminology, or contradictions. Preserve what the source actually states.
+
+Do not create a causal relationship unless the source establishes it.
+
+## Scope
+
+Preserve temporal, situational, role, and relationship scope.
+
+Behavior limited to childhood, a former role, one relationship, one event, or a special condition must not become a general present-day trait.
+
+Information about one person, group, employer, family, or relationship must not be generalized to others.
+
+Target-specific attraction, attachment, trust, distrust, hostility, or protectiveness should normally be relationship, not core.
+
+## Retrieval Atomicity
+
+Split records when they could be relevant in different future situations.
+
+Split when target, trigger or condition, time or role, type, knowledge state, modality, mechanism, or behavioral consequence materially differ.
+
+Keep information together when separation would destroy an important contrast, qualification, condition, exception, or dependency.
+
+Do not create one record per adjective. Do not merge unrelated traits, preferences, values, abilities, or facts merely because they appear in the same paragraph or lorebook entry.
+
+Different sources may be combined only when they clearly support the same proposition. Never merge them in a way that changes the stated mechanism, cause, scope, or meaning.
+
+A long source may produce many records. Source boundaries do not determine record boundaries.
+
+## Knowledge
+
+Knowledge uses stricter atomicity. One knowledge record equals one epistemic proposition at one knowledge state.
+
+Separate past belief from current knowledge, knowledge of one fact from another, identity knowledge from knowledge of concealment or deception, and fact from suspicion about motive.
+
+The rule itself must state the epistemic state: knows, believes, suspects, doubts, misunderstands, or does not know.
+
+For knowledge, knowledge_domain and knowledge_state must not be none. For all other types, both must be none.
+
+## Meta Instructions
+
+Do not extract instructions aimed at the author, narrator, or RP model as character traits.
+
+Writing style, pacing, narration, output, genre, or scene-management instructions are not in-world character information unless the source explicitly presents them as the character's actual behavior or preference.
+
+## Retrieval Cues
+
+when describes situations or topics in which the record should be retrieved.
+
+Use 1-5 short, concrete cues of 1-4 words based on likely scene content: people, actions, conflicts, conditions, relationships, physiological states, or specific topics.
+
+Avoid generic analytical labels such as personality, behavior, background, family history, characterization, or information when a concrete cue is available.
+
+## Output Details
+
+Write rule and when values in concise English regardless of source language; preserve proper names exactly.
+
+target is the exact named person or group when target-specific, otherwise an empty string.
+
+rule is one compact standalone statement, preferably 6-20 words.
+
+basis is explicit when directly stated. Use direct_inference only for the smallest operational restatement unavoidably implied by explicit source text; it must not add a fact, cause, motive, emotion, relationship, ability, or scope.
+
+source_ids may contain only supplied source IDs that directly support every substantive claim in the record.
+
+Remove semantic duplicates. Do not create record IDs, importance scores, or fields outside the schema.
+
+## Final Check
+
+Before returning each record, ensure every claim is source-supported; no outside knowledge was added; certainty and scope were preserved; no new cause was invented; target-specific information was not generalized; different mechanisms were not fused; the record is neither unnecessarily fragmented nor overloaded; and independently useful information from long sources was not omitted.
+
+Return only the structured object required by the schema.`;
 
 const BASE_SCHEMA = {
   type:'object', properties:{ records:{ type:'array', items:{ type:'object', properties:{
@@ -166,6 +214,29 @@ function deleteAllSaved(){
 async function modules(){ service ||= (await import('/scripts/extensions/shared.js')).ConnectionManagerRequestService; wi ||= await import('/scripts/world-info.js').catch(()=>null); personas ||= await import('/scripts/personas.js').catch(()=>null); }
 async function profile(){ await modules(); const c=ctx(), ps=service.getSupportedProfiles(), a=String(c.extensionSettings?.sceneReader?.reasonerProfileId||''), b=String(c.extensionSettings?.connectionManager?.selectedProfile||''); const p=ps.find(x=>String(x.id)===a)||ps.find(x=>String(x.id)===b)||ps[0]||null; const n=document.getElementById('cr-profile'); if(n)n.textContent=p?((String(p.id)===a&&a?'씬판독기 연결 프로필: ':'현재 연결 프로필: ')+(p.name||p.id)+' · '+(p.model||'모델 이름 없음')):'사용 가능한 연결 프로필 없음'; return p; }
 
+function characterSheetText(c){
+  const character=c?.characters?.[c.characterId];
+  if(!character)return'';
+  const card=character.data||character;
+  const fields=[['NAME',card.name||character.name],['DESCRIPTION',card.description],['PERSONALITY',card.personality],['SCENARIO',card.scenario],['FIRST MESSAGE / SCENE EXAMPLE',card.first_mes],['EXAMPLE DIALOGUE',card.mes_example]];
+  return fields.map(([label,value])=>[label,String(value||'').trim()]).filter(([,value])=>value).map(([label,value])=>label+':\n'+value).join('\n\n');
+}
+function personaSheetText(c){
+  const avatar=personas?.user_avatar, entry=avatar?c?.powerUserSettings?.persona_descriptions?.[avatar]:null;
+  const value=c?.personaDescription||c?.persona?.description||(typeof entry==='string'?entry:entry?.description)||c?.powerUserSettings?.persona_description||'';
+  return String(value).trim();
+}
+async function importSheet(k){
+  if(k!=='character'&&k!=='persona')return;
+  await modules();
+  const box=document.getElementById('cr-'+k+'-sheet'), text=k==='character'?characterSheetText(ctx()):personaSheetText(ctx());
+  if(!box)return;
+  if(!text){status(k,k==='character'?'현재 채팅의 캐릭터 시트를 찾지 못했습니다.':'현재 선택된 페르소나 시트를 찾지 못했습니다.',true);return;}
+  if(box.value.trim()&&!confirm('현재 입력된 시트를 가져온 시트로 바꿀까요?'))return;
+  box.value=text;
+  status(k,(k==='character'?'캐릭터':'페르소나')+' 시트를 가져왔습니다 · '+text.length+'자');
+}
+
 function charBooks(){ const c=ctx(), ch=c.characters?.[c.characterId]; if(!ch)return[]; const primary=ch.data?.extensions?.world, key=String(ch.avatar||'').replace(/\.[^/.]+$/,''); const extra=wi?.world_info?.charLore?.find(x=>x.name===key)?.extraBooks||[]; return [...new Set([primary,...(Array.isArray(extra)?extra:[])].filter(Boolean))]; }
 function personaBooks(){ const c=ctx(), p=c.powerUserSettings||{}, av=personas?.user_avatar, d=av?p.persona_descriptions?.[av]?.lorebook:''; return [...new Set([p.persona_description_lorebook,d].filter(Boolean))]; }
 function entryTitle(e){ const a=String(e.comment||e.name||'').trim(), b=Array.isArray(e.key)?e.key.filter(Boolean).join(', '):String(e.key||'').trim(); return a||b||('Entry '+e.uid); }
@@ -188,8 +259,24 @@ function renderSources(k,src,records){
   h.innerHTML=rows.map(x=>'<article class="cr-source-item"><b>'+esc(x.id)+' · '+esc(x.label||x.origin||'source')+'</b><pre>'+esc(x.text||'')+'</pre></article>').join('');
 }
 
-function splitText(t){ t=String(t||'').replace(/\r\n?/g,'\n').trim(); if(!t)return[]; const blocks=[], lines=t.split('\n'); let buf=[]; const flush=()=>{const s=buf.join('\n').trim();if(s)blocks.push(s);buf=[];}; for(const line of lines){ if(!line.trim()){flush();continue;} if(/^\s*(?:[-*•]|\d+[.)])\s+/.test(line)||/^\s*#{1,6}\s+/.test(line)){flush();blocks.push(line.trim());continue;} if(buf.join('\n').length+line.length>1200)flush(); buf.push(line.trim()); } flush(); return blocks; }
-function sources(k,text,lb){ const a=[]; let n=1; const add=(origin,label,body)=>a.push({id:'S'+String(n++).padStart(3,'0'),origin,label,text:String(body).trim()}); for(const b of splitText(text))add(k+'_sheet',k+'_sheet',b); for(const x of lb)add('lorebook',x.book+' · '+x.title,x.content); return a.filter(x=>x.text); }
+function isSectionHeading(line){ const s=String(line||'').trim(); return /^#{1,6}\s+\S/.test(s)||/^\[[^\]\n]{1,60}\]$/.test(s)||/^<[^<>/\n]{1,60}>$/.test(s)||(!/[.!?]$/.test(s)&&/^[^:\n]{1,60}:$/.test(s)&&s.split(/\s+/).length<=8); }
+function splitText(t){
+  t=String(t||'').replace(/\r\n?/g,'\n').trim();
+  if(!t)return[];
+  const lines=t.split('\n');
+  if(lines.some(isSectionHeading)){
+    const sections=[]; let buf=[];
+    const flush=()=>{const s=buf.join('\n').trim();if(s)sections.push(s);buf=[];};
+    for(const line of lines){ if(isSectionHeading(line)){flush();buf=[line.trim()];}else if(line.trim()||buf.length)buf.push(line.trimEnd()); }
+    flush();
+    return sections.flatMap(section=>{ if(section.length<=1200)return[section]; const parts=section.split(/\n\s*\n/).filter(Boolean), out=[]; let chunk=''; for(const part of parts){ if(chunk&&chunk.length+part.length+2>1200){out.push(chunk);chunk='';} chunk+=(chunk?'\n\n':'')+part; } if(chunk)out.push(chunk); return out; });
+  }
+  const blocks=[]; let buf=[];
+  const flush=()=>{const s=buf.join('\n').trim();if(s)blocks.push(s);buf=[];};
+  for(const line of lines){ if(!line.trim()){flush();continue;} if(/^\s*(?:[-*•]|\d+[.)])\s+/.test(line)){flush();blocks.push(line.trim());continue;} if(buf.join('\n').length+line.length>1200)flush(); buf.push(line.trim()); }
+  flush(); return blocks;
+}
+function sources(k,text,lb){ const a=[]; let n=1; const add=(origin,label,body)=>a.push({id:'S'+String(n++).padStart(3,'0'),origin,label,text:String(body).trim()}); for(const b of splitText(text))add(k+'_sheet',k+'_sheet',b); for(const x of lb)for(const b of splitText(x.content))add('lorebook',x.book+' · '+x.title,b); return a.filter(x=>x.text); }
 function schema(ids){ const s=structuredClone(BASE_SCHEMA); s.properties.records.items.properties.source_ids.items.enum=ids; return s; }
 function input(k,name,src){ return 'ENTITY_TYPE: '+k+'\nENTITY_NAME: '+name+'\n\nSOURCE MATERIAL\n'+src.map(x=>'['+x.id+' | '+x.origin+' | '+x.label+']\n'+x.text).join('\n\n'); }
 function parse(v){ for(let i=0;i<5;i++){ if(Array.isArray(v))v=v.map(x=>typeof x==='string'?x:(x?.text||'')).join(''); else if(v&&typeof v==='object'){ if(typeof v.text==='string')v=v.text; else if(typeof v.content==='string'||Array.isArray(v.content))v=v.content; else if(typeof v.output==='string')v=v.output; else break;} else break;} if(typeof v==='string'){ let r=v.trim().replace(/^\uFEFF/,''); const m=r.match(/^(?:\x60){3}(?:json)?\s*([\s\S]*?)(?:\x60){3}$/i); v=JSON.parse((m?m[1]:r).trim()); } if(!v||typeof v!=='object'||Array.isArray(v))throw new Error('모델이 JSON 객체를 반환하지 않았습니다.'); return v; }
@@ -198,8 +285,8 @@ function validate(r,ids){ if(!Array.isArray(r.records))throw new Error('records 
 async function compile(k){ const btn=document.getElementById('cr-'+k+'-compile'), name=String(document.getElementById('cr-'+k+'-name')?.value||'').trim(), text=String(document.getElementById('cr-'+k+'-sheet')?.value||'').trim(); if(!name){status(k,'이름을 직접 입력하세요.',true);return;} const src=sources(k,text,k==='npc'?[]:chosenLore(k)); if(!src.length){status(k,'시트 원문이나 선택한 로어북 항목이 필요합니다.',true);return;} btn.disabled=true; status(k,'컴파일 중 · '+src.length+'개 source'); try{ const p=await profile(); if(!p)throw new Error('연결 프로필이 없습니다.'); const messages=[{role:'system',content:PROMPT},{role:'user',content:input(k,name,src)}]; const res=await service.sendRequest(p.id,messages,6000,{stream:false,extractData:true,includePreset:false,includeInstruct:true},{json_schema:{name:'character_retrieval_records',description:'Source-grounded atomic character retrieval records.',strict:true,value:schema(src.map(x=>x.id))}}); const r=parse(res?.content??res), w=validate(r,src.map(x=>x.id)), used=new Set(r.records.flatMap(x=>x.source_ids)); const out={entity_type:k,entity_name:name,records:r.records}; currentRuns[k]={compiled_at:new Date().toISOString(),output:out,profile:{id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')},sources:src.filter(x=>used.has(x.id)).map(x=>({id:x.id,origin:x.origin,label:x.label,text:x.text}))}; document.getElementById('cr-'+k+'-output').value=JSON.stringify(out,null,2); document.getElementById('cr-'+k+'-result').hidden=false; renderSources(k,currentRuns[k].sources,r.records); status(k,r.records.length+'개 레코드 생성'+(w?' · 검토 경고 '+w+'개':'')); }catch(e){console.error('['+EXT+'] compile failed',e);status(k,'실패: '+(e?.cause?.message||e?.message||e),true);}finally{btn.disabled=false;} }
 
 async function copy(k){ const v=document.getElementById('cr-'+k+'-output')?.value||''; if(!v)return; await copyText(v); toast('결과를 복사했습니다.','success'); }
-function panel(k,title,hasLore){ return '<section class="cr-panel '+(k==='character'?'active':'')+'" data-kind="'+k+'"><div class="cr-card"><label>'+title+' 이름</label><input id="cr-'+k+'-name" class="text_pole" autocomplete="off" placeholder="직접 입력"><label>'+title+' 시트 원본</label><textarea id="cr-'+k+'-sheet" class="text_pole" placeholder="원본 시트를 그대로 붙여 넣으세요."></textarea></div>'+(hasLore?'<div class="cr-card"><div class="cr-row"><button id="cr-'+k+'-lore-load" class="menu_button">연결 로어북 가져오기</button><button id="cr-'+k+'-all" class="menu_button">전체 선택/해제</button></div><p class="cr-help">현재 연결된 로어북에서 체크한 항목만 함께 읽습니다.</p><div id="cr-'+k+'-lore" class="cr-lore-list"><div class="cr-help">아직 불러오지 않았습니다.</div></div></div>':'')+'<div class="cr-card"><button id="cr-'+k+'-compile" class="menu_button cr-compile">컴파일</button><div id="cr-'+k+'-status" class="cr-status">대기</div></div><div id="cr-'+k+'-result" class="cr-card" hidden><div class="cr-row"><b>결과 JSON</b><button id="cr-'+k+'-save" class="menu_button">결과 저장</button><button id="cr-'+k+'-copy" class="menu_button">결과 복사</button></div><textarea id="cr-'+k+'-output" class="text_pole cr-output" readonly></textarea><details class="cr-sources"><summary>사용된 Source 보기</summary><div id="cr-'+k+'-sources" class="cr-source-list"></div></details></div></section>'; }
-function makeDialog(){ if(dlg)return; dlg=document.createElement('dialog'); dlg.id='character-reasoner-dialog'; dlg.innerHTML='<div class="cr-shell"><header class="cr-header"><div class="cr-title"><h2>Character Reasoner</h2><p>시트 정규화 테스트 · Jev/임베딩/주입 없음</p></div><button id="cr-close" class="cr-icon-button"><i class="fa-solid fa-xmark"></i></button></header><div><div id="cr-profile" class="cr-profile">연결 프로필 확인 중…</div><nav class="cr-tabs"><button class="active" data-tab="character">캐릭터</button><button data-tab="persona">페르소나</button><button data-tab="npc">NPC</button></nav></div><main class="cr-main"><section class="cr-saved cr-card"><div class="cr-row cr-saved-header"><div><b>저장된 결과</b><p class="cr-help">결과 저장을 누른 항목만 현재 SillyTavern 사용자 설정에 남습니다.</p></div><button id="cr-delete-all" class="menu_button cr-danger">전체 삭제</button></div><div id="cr-saved-list" class="cr-saved-list"></div></section>'+panel('character','캐릭터',true)+panel('persona','페르소나',true)+panel('npc','NPC',false)+'</main></div>'; document.body.append(dlg); dlg.querySelector('#cr-close').onclick=()=>dlg.close(); dlg.querySelector('#cr-saved-list').onclick=e=>void savedAction(e); dlg.querySelector('#cr-delete-all').onclick=deleteAllSaved; dlg.querySelectorAll('.cr-tabs button').forEach(b=>b.onclick=()=>{dlg.querySelectorAll('.cr-tabs button').forEach(x=>x.classList.toggle('active',x===b));dlg.querySelectorAll('.cr-panel').forEach(x=>x.classList.toggle('active',x.dataset.kind===b.dataset.tab));}); ['character','persona','npc'].forEach(k=>{document.getElementById('cr-'+k+'-compile').onclick=()=>compile(k);document.getElementById('cr-'+k+'-save').onclick=()=>saveCurrent(k);document.getElementById('cr-'+k+'-copy').onclick=()=>copy(k);}); ['character','persona'].forEach(k=>{document.getElementById('cr-'+k+'-lore-load').onclick=()=>loadLore(k);document.getElementById('cr-'+k+'-all').onclick=()=>{const rows=[...document.querySelectorAll('#cr-'+k+'-lore .cr-lore-item')], on=rows.some(x=>x.getAttribute('aria-pressed')!=='true');rows.forEach(x=>setLoreSelected(x,on));};}); renderSaved(); }
+function panel(k,title,hasLore){ return '<section class="cr-panel '+(k==='character'?'active':'')+'" data-kind="'+k+'"><div class="cr-card"><label>'+title+' 이름</label><input id="cr-'+k+'-name" class="text_pole" autocomplete="off" placeholder="직접 입력"><div class="cr-row cr-sheet-heading"><label>'+title+' 시트 원본</label>'+(k!=='npc'?'<button id="cr-'+k+'-sheet-load" class="menu_button">현재 '+title+' 시트 가져오기</button>':'')+'</div><textarea id="cr-'+k+'-sheet" class="text_pole" placeholder="원본 시트를 그대로 붙여 넣으세요."></textarea></div>'+(hasLore?'<div class="cr-card"><div class="cr-row"><button id="cr-'+k+'-lore-load" class="menu_button">연결 로어북 가져오기</button><button id="cr-'+k+'-all" class="menu_button">전체 선택/해제</button></div><p class="cr-help">현재 연결된 로어북에서 체크한 항목만 함께 읽습니다.</p><div id="cr-'+k+'-lore" class="cr-lore-list"><div class="cr-help">아직 불러오지 않았습니다.</div></div></div>':'')+'<div class="cr-card"><button id="cr-'+k+'-compile" class="menu_button cr-compile">컴파일</button><div id="cr-'+k+'-status" class="cr-status">대기</div></div><div id="cr-'+k+'-result" class="cr-card" hidden><div class="cr-row"><b>결과 JSON</b><button id="cr-'+k+'-save" class="menu_button">결과 저장</button><button id="cr-'+k+'-copy" class="menu_button">결과 복사</button></div><textarea id="cr-'+k+'-output" class="text_pole cr-output" readonly></textarea><details class="cr-sources"><summary>사용된 Source 보기</summary><div id="cr-'+k+'-sources" class="cr-source-list"></div></details></div></section>'; }
+function makeDialog(){ if(dlg)return; dlg=document.createElement('dialog'); dlg.id='character-reasoner-dialog'; dlg.innerHTML='<div class="cr-shell"><header class="cr-header"><div class="cr-title"><h2>Character Reasoner</h2><p>시트 정규화 테스트 · Jev/임베딩/주입 없음</p></div><button id="cr-close" class="cr-icon-button"><i class="fa-solid fa-xmark"></i></button></header><div><div id="cr-profile" class="cr-profile">연결 프로필 확인 중…</div><nav class="cr-tabs"><button class="active" data-tab="character">캐릭터</button><button data-tab="persona">페르소나</button><button data-tab="npc">NPC</button></nav></div><main class="cr-main"><section class="cr-saved cr-card"><div class="cr-row cr-saved-header"><div><b>저장된 결과</b><p class="cr-help">결과 저장을 누른 항목만 현재 SillyTavern 사용자 설정에 남습니다.</p></div><button id="cr-delete-all" class="menu_button cr-danger">전체 삭제</button></div><div id="cr-saved-list" class="cr-saved-list"></div></section>'+panel('character','캐릭터',true)+panel('persona','페르소나',true)+panel('npc','NPC',false)+'</main></div>'; document.body.append(dlg); dlg.querySelector('#cr-close').onclick=()=>dlg.close(); dlg.querySelector('#cr-saved-list').onclick=e=>void savedAction(e); dlg.querySelector('#cr-delete-all').onclick=deleteAllSaved; dlg.querySelectorAll('.cr-tabs button').forEach(b=>b.onclick=()=>{dlg.querySelectorAll('.cr-tabs button').forEach(x=>x.classList.toggle('active',x===b));dlg.querySelectorAll('.cr-panel').forEach(x=>x.classList.toggle('active',x.dataset.kind===b.dataset.tab));}); ['character','persona','npc'].forEach(k=>{document.getElementById('cr-'+k+'-compile').onclick=()=>compile(k);document.getElementById('cr-'+k+'-save').onclick=()=>saveCurrent(k);document.getElementById('cr-'+k+'-copy').onclick=()=>copy(k);}); ['character','persona'].forEach(k=>{document.getElementById('cr-'+k+'-sheet-load').onclick=()=>void importSheet(k);document.getElementById('cr-'+k+'-lore-load').onclick=()=>loadLore(k);document.getElementById('cr-'+k+'-all').onclick=()=>{const rows=[...document.querySelectorAll('#cr-'+k+'-lore .cr-lore-item')], on=rows.some(x=>x.getAttribute('aria-pressed')!=='true');rows.forEach(x=>setLoreSelected(x,on));};}); renderSaved(); }
 async function open(){ makeDialog(); await profile().catch(()=>{}); if(!dlg.open)dlg.showModal(); }
 function quick(){ if(document.getElementById('character-reasoner-quick-button'))return true; const e=document.getElementById('extensionsMenuButton'), h=e?.parentElement||document.getElementById('leftSendForm')||document.getElementById('rightSendForm'); if(!h)return false; const b=document.createElement('div');b.id='character-reasoner-quick-button';b.className='fa-solid fa-user interactable';b.tabIndex=0;b.title=EXT;b.setAttribute('role','button');b.onclick=()=>open();e?.nextSibling?h.insertBefore(b,e.nextSibling):h.append(b);return true; }
 async function init(){ await modules(); makeDialog(); if(!quick()){const o=new MutationObserver(()=>{if(quick())o.disconnect();});o.observe(document.body,{childList:true,subtree:true});} await profile().catch(()=>{}); console.info('['+EXT+'] loaded'); }

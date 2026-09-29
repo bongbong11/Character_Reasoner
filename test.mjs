@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={PROMPT,validate,sameEntity,saveResult,savedResults,setLoreSelected};';
+const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={PROMPT,validate,sameEntity,saveResult,savedResults,setLoreSelected,characterSheetText,personaSheetText,splitText,sources};';
 const context = { console, structuredClone, globalThis: null };
 context.globalThis = context;
 vm.runInNewContext(script, context);
 
-const { PROMPT, validate, sameEntity, saveResult, savedResults, setLoreSelected } = context.__test;
+const { PROMPT, validate, sameEntity, saveResult, savedResults, setLoreSelected, characterSheetText, personaSheetText, splitText, sources } = context.__test;
 const base = {
   type: 'knowledge', target: 'Lucas', when: ['secret identity'],
   rule: 'Lucas knows the secret.', modality: 'fact', basis: 'explicit',
@@ -42,14 +42,24 @@ setLoreSelected(loreRow, false);
 assert.equal(attributes.get('aria-pressed'), 'false');
 assert.equal(classes.has('selected'), false);
 
+const importedCharacter = characterSheetText({ characterId: 0, characters: [{ data: { name: 'A', description: 'Desc', personality: 'Calm', scenario: 'Home' } }] });
+assert.match(importedCharacter, /NAME:\nA/);
+assert.match(importedCharacter, /PERSONALITY:\nCalm/);
+assert.equal(personaSheetText({ personaDescription: 'Persona body' }), 'Persona body');
+assert.deepEqual(Array.from(splitText('PERSONALITY:\nCalm\n\nLIKES:\nTea')), ['PERSONALITY:\nCalm', 'LIKES:\nTea']);
+const loreSources = sources('character', '', [{ book: 'Book', title: 'Entry', content: 'LIKES:\nTea\n\nSKILLS:\nCooking' }]);
+assert.equal(loreSources.length, 2);
+assert.deepEqual(Array.from(loreSources, x => x.id), ['S001', 'S002']);
+
 for (const required of [
-  'AUTHORIAL / META DIRECTIVES',
-  'dominant alpha',
-  'hospital test',
-  'Never change OR into AND',
-  'TEMPORAL / ROLE SCOPE',
-  'As a bouncer',
-  'independently retrievable propositions',
+  '## Source Fidelity',
+  'Do not silently correct',
+  '## Retrieval Atomicity',
+  'mechanism',
+  'One knowledge record equals one epistemic proposition',
+  '## Meta Instructions',
+  'Use direct_inference only for the smallest operational restatement',
 ]) assert.ok(PROMPT.includes(required), `missing prompt guard: ${required}`);
+for (const overfit of ['Lucas', 'prime alpha', 'hospital test', 'As a bouncer']) assert.equal(PROMPT.includes(overfit), false, `overfit example remains: ${overfit}`);
 
 console.log('Character Reasoner regression checks passed.');

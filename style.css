@@ -164,6 +164,9 @@
     flex-wrap: wrap;
     gap: 8px;
 }
+#character-reasoner-dialog .cr-sheet-heading { justify-content: space-between; }
+#character-reasoner-dialog .cr-sheet-heading label { flex: 1 1 auto; }
+#character-reasoner-dialog .cr-sheet-heading .menu_button { min-height: 34px; padding: 5px 10px; }
 
 #character-reasoner-dialog .menu_button {
     display: inline-flex;
