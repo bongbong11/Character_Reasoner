@@ -20,6 +20,7 @@ assert.throws(() => validate({ records: [{ ...base, type: 'boundary' }] }, ['S00
 assert.throws(() => validate({ records: [{ ...base, knowledge_state: 'none' }] }, ['S001']), /knowledge 레코드/);
 assert.throws(() => validate({ records: [{ ...base, knowledge_state: undefined }] }, ['S001']), /enum/);
 assert.throws(() => validate({ records: [{ ...base, when: ['background'] }] }, ['S001']), /구체적인 장면 cue/);
+for (const cue of ['personality traits', 'daily demeanor', 'worldview', 'general demeanor']) assert.throws(() => validate({ records: [{ ...base, when: [cue] }] }, ['S001']), /구체적인 장면 cue/);
 assert.equal(sameEntity({ output: { entity_type: 'character', entity_name: 'Lucas' } }, { output: { entity_type: 'character', entity_name: ' lucas ' } }), true);
 
 const settingsContext = { extensionSettings: {}, saveSettingsDebounced() {} };
@@ -55,8 +56,13 @@ for (const required of [
   '## Source Fidelity',
   'Do not silently correct',
   '## Retrieval Atomicity',
-  'mechanism',
+  '## Strict Separation',
+  'the records MUST remain separate',
   'One knowledge record equals one epistemic proposition',
+  '## Knowledge Boundary',
+  'Do not absorb related objective facts',
+  '## Coverage',
+  'Compression removes redundancy, not information',
   '## Meta Instructions',
   'Use direct_inference only for the smallest operational restatement',
 ]) assert.ok(PROMPT.includes(required), `missing prompt guard: ${required}`);

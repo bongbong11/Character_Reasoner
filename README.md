@@ -64,7 +64,7 @@ https://github.com/bongbong11/Character_Reasoner.git
 
 각 레코드는 현재 장면 검색에 사용할 `when`, 실제 캐릭터 제약인 `rule`, 원문 강도를 보존하는 `modality`, 출처 추적용 `source_ids` 등을 가집니다.
 
-Compiler 프롬프트는 작성자용 RP 지시를 인물 특성에서 제외하고, 원문에 없는 장르 설정·등급·검사·진단·인과관계를 보충하지 않도록 제한합니다. 불확실성, `or`, 빈도, 과거 직업·특정 관계의 범위를 유지하며, 독립적인 knowledge 명제는 분리하도록 지시합니다. `knowledge`와 `knowledge_domain`/`knowledge_state`의 조합이 맞지 않거나 `when`이 지나치게 일반적이면 결과를 오류로 처리합니다.
+Compiler 프롬프트는 작성자용 RP 지시를 인물 특성에서 제외하고, 원문에 없는 장르 설정·등급·검사·진단·인과관계를 보충하지 않도록 제한합니다. 불확실성, `or`, 빈도, 과거 직업·특정 관계의 범위를 유지하며, 서로 다른 메커니즘과 검색 상황 및 독립적인 knowledge 명제를 분리합니다. 압축 과정에서 원문 정보를 생략하지 않도록 coverage를 요구합니다. `knowledge`와 `knowledge_domain`/`knowledge_state`의 조합이 맞지 않거나 `when`이 분석용 메타어이면 결과를 오류로 처리합니다.
 
 시트와 로어북 원문에 `PERSONALITY:`, `LIKES:`, `SKILLS:` 같은 짧은 heading이 있으면 코드가 heading 단위 source로 먼저 분리합니다. 모델은 source 경계와 무관하게 필요한 레코드를 더 나누거나 같은 명제를 합칠 수 있습니다.
 

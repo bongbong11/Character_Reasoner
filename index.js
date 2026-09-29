@@ -4,7 +4,7 @@ const MODES = ['fact','habit','preference','tendency','conditional','possibility
 const BASES = ['explicit','direct_inference'];
 const KDOM = ['none','self','person','relationship','history','event','secret','professional','organization','world','current'];
 const KSTATE = ['none','knows','believes','suspects','doubts','misunderstands','does_not_know'];
-const GENERIC_WHEN = new Set(['personality','background','family history','behavior','information']);
+const GENERIC_WHEN = new Set(['personality','personality traits','traits','behavior','background','family history','characterization','worldview','information','demeanor','daily demeanor','general demeanor']);
 const SETTINGS_KEY = 'characterReasoner';
 const lore = { character: [], persona: [] };
 const currentRuns = { character: null, persona: null, npc: null };
@@ -68,7 +68,15 @@ Keep information together when separation would destroy an important contrast, q
 
 Do not create one record per adjective. Do not merge unrelated traits, preferences, values, abilities, or facts merely because they appear in the same paragraph or lorebook entry.
 
-Different sources may be combined only when they clearly support the same proposition. Never merge them in a way that changes the stated mechanism, cause, scope, or meaning.
+## Strict Separation
+
+Never merge records merely because their outcomes or topics are similar.
+
+If mechanism, cause, condition, target, time scope, or retrieval situation differs, the records MUST remain separate.
+
+Sharing the same target or source is not sufficient reason to merge. Target-specific feelings or stances that belong in different retrieval situations must remain separate.
+
+Different sources may be combined only when they clearly support the same proposition without changing its mechanism, cause, condition, target, time scope, or meaning.
 
 A long source may produce many records. Source boundaries do not determine record boundaries.
 
@@ -82,6 +90,22 @@ The rule itself must state the epistemic state: knows, believes, suspects, doubt
 
 For knowledge, knowledge_domain and knowledge_state must not be none. For all other types, both must be none.
 
+## Knowledge Boundary
+
+A knowledge state applies only to the exact proposition stated as known, believed, suspected, misunderstood, doubted, or unknown.
+
+Do not absorb related objective facts into that knowledge state. Preserve objective facts as separate records when the source independently establishes them.
+
+## Coverage
+
+Coverage is mandatory.
+
+Do not omit a source-supported detail merely because another record seems more important.
+
+If two details could independently change portrayal in different situations, both require records.
+
+Compression removes redundancy, not information.
+
 ## Meta Instructions
 
 Do not extract instructions aimed at the author, narrator, or RP model as character traits.
@@ -94,7 +118,9 @@ when describes situations or topics in which the record should be retrieved.
 
 Use 1-5 short, concrete cues of 1-4 words based on likely scene content: people, actions, conflicts, conditions, relationships, physiological states, or specific topics.
 
-Avoid generic analytical labels such as personality, behavior, background, family history, characterization, or information when a concrete cue is available.
+Do not use analytical category labels as cues when concrete scene or topic cues are available.
+
+Cues such as personality, personality traits, traits, behavior, background, family history, characterization, worldview, information, daily demeanor, or general demeanor are invalid when a concrete cue can be used.
 
 ## Output Details
 
