@@ -9,7 +9,8 @@ const exported = [
   'hardValidateRecords','validateImport','saveVersion','allSaved',
   'deleteVersion','findGroup','setLoreSelected'
 ].join(',');
-const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={'+exported+'};';
+const coreSource = fs.readFileSync(new URL('./core/index.js', import.meta.url), 'utf8').replace(/^export \{[^}]+\};?$/gm, '').replace(/^export /gm, '');
+const script = coreSource.replace(/const KINDS[^;]+;/, '').replace(/const KIND_LABEL[^;]+;/, '') + '\n' + source.replace(/^import[^\n]+\n/gm, '').replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={'+exported+'};';
 let uuidCounter=0;
 const context = {
   console,

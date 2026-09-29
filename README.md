@@ -1,5 +1,9 @@
 # Character Reasoner
 
+씬판독기 사용자라면 이 확장을 따로 설치하지 않아도 됩니다. 이 저장소는 인물 분석 기준을 개발·확인하는 별도 작업 공간입니다. 분석 기준을 수정할 때는 `core/index.js`를 먼저 수정하고 `node test.mjs`로 확인합니다. main에 올린 core 변경은 씬판독기의 자동 동기화 검사 대상이 됩니다. 화면만 수정한 것은 씬판독기 화면에 반영되지 않습니다.
+
+씬판독기는 6시간 간격으로 core 변경을 확인하고, 검사를 통과한 사본을 내장합니다. 즉시 확인하려면 씬판독기 GitHub의 Actions에서 **Sync Character Reasoner core → Run workflow**를 사용합니다. 로컬에서는 씬판독기의 `node scripts/sync-character-core.mjs <Character Reasoner 경로>`로 동기화하고 `--check`로 일치 여부를 확인합니다. 사용자에게 반영하려면 씬판독기를 업데이트해야 합니다.
+
 SillyTavern에서 캐릭터·페르소나·NPC 원문을 조립하고, 공홈 AI가 만든 retrieval JSON을 검증해 저장하는 시험 확장입니다.
 
 이 버전은 모델이나 API를 직접 호출하지 않습니다. Connection Manager, API 키, Gemini 분기, 자동 repair도 사용하지 않습니다.
