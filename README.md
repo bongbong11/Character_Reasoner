@@ -67,7 +67,7 @@ https://github.com/bongbong11/Character_Reasoner.git
 
 Compiler 프롬프트는 선택적 요약 대신 source-grounded retrieval records를 만들도록 요구합니다. 작성 지시는 데이터로 실행하지 않고 제외하며, 원문의 관점·강도·불확실성·빈도·AND/OR·부정·조건·시간·역할·대상 범위를 보존합니다. 명시된 관계·신분은 독립적으로 보존하고, 다른 인물의 독립적인 성격·외모·능력이 대상 캐릭터 기록에 섞이지 않도록 제한합니다.
 
-모델 ID에 `gemini`가 포함되면 공통 compiler 프롬프트를 사용합니다. 그 밖의 모델과 모델 ID를 판별할 수 없는 연결에는 `when`, `target`, `knowledge` 필드 계약을 강조한 strict adapter가 자동으로 추가됩니다. `when` 검증 실패에는 record 위치·실제 값·실패 이유가 표시됩니다. 명백히 사람이나 집단으로 보이지 않는 `target`은 결과를 막지 않고 검토 경고로 표시합니다.
+모델 ID에 `gemini`가 포함되면 공통 compiler 프롬프트를 사용합니다. 그 밖의 모델과 모델 ID를 판별할 수 없는 연결에는 `when`, `target`, `knowledge` 필드 계약을 강조한 strict adapter가 자동으로 추가됩니다. 한 레코드에 유효한 `when` cue가 남아 있으면 금지된 분류명·빈 cue·5단어 이상 cue만 자동 제거하고 검토 경고를 표시합니다. 모든 cue가 잘못된 레코드는 record 위치·실제 값·실패 이유와 함께 오류 처리합니다. 명백히 사람이나 집단으로 보이지 않는 `target`은 결과를 막지 않고 검토 경고로 표시합니다.
 
 시트와 로어북 원문에 `PERSONALITY:`, `LIKES:`, `SKILLS:` 같은 짧은 heading이 있으면 코드가 heading 단위 source로 먼저 분리합니다. 모델은 source 경계와 무관하게 필요한 레코드를 더 나누거나 같은 명제를 합칠 수 있습니다.
 

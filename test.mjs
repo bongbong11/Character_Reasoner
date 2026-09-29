@@ -22,6 +22,9 @@ assert.throws(() => validate({ records: [{ ...base, knowledge_state: undefined }
 assert.throws(() => validate({ records: [{ ...base, when: ['background'] }] }, ['S001']), /분류명/);
 for (const cue of ['personality traits', 'daily demeanor', 'worldview', 'general demeanor', 'likes', 'skills']) assert.throws(() => validate({ records: [{ ...base, when: [cue] }] }, ['S001']), /분류명/);
 assert.throws(() => validate({ records: [{ ...base, when: ['what Lucas knows about himself'] }] }, ['S001']), /record\[0\]\.when\[0\].*5단어, 최대 4단어/);
+const repairableWhen = { ...base, when: ['observing Lucas demeanor', 'personality traits'] };
+assert.match(validate({ records: [repairableWhen] }, ['S001'])[0], /cue 제거/);
+assert.deepEqual(Array.from(repairableWhen.when), ['observing Lucas demeanor']);
 assert.match(validate({ records: [{ ...base, target: 'intense rut' }] }, ['S001'])[0], /record\[0\]\.target/);
 assert.equal(sameEntity({ output: { entity_type: 'character', entity_name: 'Lucas' } }, { output: { entity_type: 'character', entity_name: ' lucas ' } }), true);
 

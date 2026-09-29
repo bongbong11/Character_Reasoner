@@ -318,12 +318,24 @@ function validate(r,ids){
     if(!TYPES.includes(x.type)||!MODES.includes(x.modality)||!BASES.includes(x.basis)||!KDOM.includes(x.knowledge_domain)||!KSTATE.includes(x.knowledge_state))throw new Error('record['+i+']: 허용되지 않은 enum 값이 있습니다.');
     if(!Array.isArray(x.when)||!x.when.length||x.when.length>5){
       whenErrors.push('record['+i+'].when: 1-5개 cue 배열이어야 합니다.');
-    }else x.when.forEach((v,j)=>{
-      if(typeof v!=='string'||!v.trim()){whenErrors.push('record['+i+'].when['+j+']: 빈 문자열은 사용할 수 없습니다.');return;}
-      const cue=v.trim(), words=cue.split(/\s+/).length;
-      if(words>4)whenErrors.push('record['+i+'].when['+j+'] '+quoted(cue)+': '+words+'단어, 최대 4단어');
-      else if(GENERIC_WHEN.has(cue.toLowerCase()))whenErrors.push('record['+i+'].when['+j+'] '+quoted(cue)+': 분류명은 사용할 수 없음');
-    });
+    }else{
+      const validCues=[], cueErrors=[];
+      x.when.forEach((v,j)=>{
+        let reason='';
+        if(typeof v!=='string'||!v.trim())reason='빈 문자열은 사용할 수 없습니다.';
+        else{
+          const cue=v.trim(), words=cue.split(/\s+/).length;
+          if(words>4)reason=words+'단어, 최대 4단어';
+          else if(GENERIC_WHEN.has(cue.toLowerCase()))reason='분류명은 사용할 수 없음';
+        }
+        if(reason)cueErrors.push('record['+i+'].when['+j+'] '+quoted(v)+': '+reason);
+        else validCues.push(v.trim());
+      });
+      if(cueErrors.length&&validCues.length){
+        x.when=validCues;
+        warnings.push(...cueErrors.map(v=>v+' → cue 제거'));
+      }else if(cueErrors.length)whenErrors.push(...cueErrors);
+    }
     if(!Array.isArray(x.source_ids)||!x.source_ids.length||x.source_ids.some(id=>!ok.has(id)))throw new Error('record['+i+']: 존재하지 않는 source_id가 있습니다.');
     if(x.type==='knowledge'&&(x.knowledge_domain==='none'||x.knowledge_state==='none'))throw new Error('record['+i+']: knowledge 레코드에는 knowledge_domain과 knowledge_state가 필요합니다.');
     if(x.type!=='knowledge'&&(x.knowledge_domain!=='none'||x.knowledge_state!=='none'))throw new Error('record['+i+']: knowledge 이외의 레코드는 knowledge_domain과 knowledge_state가 none이어야 합니다.');
