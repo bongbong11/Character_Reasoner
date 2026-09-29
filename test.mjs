@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={PROMPT,validate,parse,sameEntity,saveResult,savedResults,setLoreSelected,characterSheetText,personaSheetText,splitText,sources};';
+const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={PROMPT,MAX_OUTPUT_TOKENS,validate,parse,sameEntity,saveResult,savedResults,setLoreSelected,characterSheetText,personaSheetText,splitText,sources};';
 const context = { console, structuredClone, globalThis: null };
 context.globalThis = context;
 vm.runInNewContext(script, context);
 
-const { PROMPT, validate, parse, sameEntity, saveResult, savedResults, setLoreSelected, characterSheetText, personaSheetText, splitText, sources } = context.__test;
+const { PROMPT, MAX_OUTPUT_TOKENS, validate, parse, sameEntity, saveResult, savedResults, setLoreSelected, characterSheetText, personaSheetText, splitText, sources } = context.__test;
 const base = {
   type: 'knowledge', target: 'Lucas', when: ['secret identity'],
   rule: 'Lucas knows the secret.', modality: 'fact', basis: 'explicit',
@@ -43,9 +43,11 @@ setLoreSelected(loreRow, false);
 assert.equal(attributes.get('aria-pressed'), 'false');
 assert.equal(classes.has('selected'), false);
 
-const importedCharacter = characterSheetText({ characterId: 0, characters: [{ data: { name: 'A', description: 'Desc', personality: 'Calm', scenario: 'Home' } }] });
-assert.match(importedCharacter, /NAME:\nA/);
+const importedCharacter = characterSheetText({ characterId: 0, characters: [{ data: { name: 'A', description: 'Desc', personality: 'Calm', scenario: 'Home', first_mes: 'Hello', mes_example: 'Example' } }] });
+assert.match(importedCharacter, /DESCRIPTION:\nDesc/);
 assert.match(importedCharacter, /PERSONALITY:\nCalm/);
+for (const excluded of ['NAME:', 'SCENARIO:', 'FIRST MESSAGE', 'EXAMPLE DIALOGUE', 'Hello', 'Example']) assert.equal(importedCharacter.includes(excluded), false, `unexpected imported field: ${excluded}`);
+assert.equal(MAX_OUTPUT_TOKENS, 12000);
 assert.equal(personaSheetText({ personaDescription: 'Persona body' }), 'Persona body');
 assert.deepEqual(Array.from(splitText('PERSONALITY:\nCalm\n\nLIKES:\nTea')), ['PERSONALITY:\nCalm', 'LIKES:\nTea']);
 const loreSources = sources('character', '', [{ book: 'Book', title: 'Entry', content: 'LIKES:\nTea\n\nSKILLS:\nCooking' }]);
