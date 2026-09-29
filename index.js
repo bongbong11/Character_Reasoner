@@ -1,14 +1,14 @@
 const EXT = 'Character Reasoner';
-const EXT_VERSION = '0.6.2';
+const EXT_VERSION = '0.7.0';
 const TYPES = ['fact','core','value','relationship','knowledge','reaction','expression','boundary','capability'];
 const MODES = ['fact','habit','preference','tendency','conditional','possibility','negation'];
 const BASES = ['explicit','direct_inference'];
 const KDOM = ['none','self','person','relationship','history','event','secret','professional','organization','world','current'];
 const KSTATE = ['none','knows','believes','suspects','doubts','misunderstands','does_not_know'];
 const GENERIC_WHEN = new Set(['personality','personality traits','traits','behavior','background','family history','characterization','worldview','motivation','history','habits','routines','skills','capability','preferences','likes','dislikes','sexuality','information','demeanor','daily demeanor','general demeanor']);
-const SUSPICIOUS_TARGETS = new Set(['military','intense rut','rut','heat','workout','morning','night','past','job','employment','personality','background','history','worldview']);
 const SETTINGS_KEY = 'characterReasoner';
 const MAX_OUTPUT_TOKENS = 12000;
+const REPAIR_MAX_OUTPUT_TOKENS = 1000;
 const lore = { character: [], persona: [] };
 const currentRuns = { character: null, persona: null, npc: null };
 const debugRuns = { character: null, persona: null, npc: null };
@@ -83,7 +83,7 @@ Write rule and when in concise English while preserving proper names and placeho
 
 rule: a compact standalone statement using an identifiable subject. Aim for 6-24 words, but retain essential qualifiers rather than force the limit.
 target: the specific person or group the proposition applies to; otherwise an empty string.
-when: 1-5 short retrieval cues. Each cue must contain 1-4 words. Prefer concrete scene situations, actions, triggers, states, relationships, or discussion topics rather than profile headings.
+when: 1-5 concise retrieval cues. Prefer 1-4 words per cue and never exceed 6 words. Prefer concrete scene situations, actions, triggers, states, relationships, or discussion topics rather than profile headings.
 modality: the closest allowed value; preserve the exact source strength in rule.
 basis: explicit for direct statements and faithful paraphrases; direct_inference only for strictly entailed implications, never guesses.
 source_ids: only supplied IDs supporting the actual proposition, not merely discussing the same entity.
@@ -99,13 +99,15 @@ const NON_GEMINI_STRICT_ADAPTER = `STRICT FIELD CONTRACT
 These constraints are literal validation requirements.
 
 WHEN
-when must be an array of 1-5 strings. Every string must contain 1-4 words only.
+Use 1-5 concise retrieval cues. Prefer 1-4 words per cue; never exceed 6 words.
 
-Each cue must describe a concrete scene, action, trigger, physical or emotional state, relationship situation, discussion topic, or recurring circumstance.
+Each cue should describe a concrete scene, action, trigger, state, relationship situation, recurring circumstance, or discussion topic.
 
 Do not use profile/category labels as cues, including: personality, traits, likes, dislikes, worldview, motivation, background, history, habits, routines, skills, capability, preferences, sexuality, information.
 
-Do not write explanatory phrases such as what X knows, why X behaves this way, how X got the job, or what happened to X. Convert them into short retrieval cues instead.
+Avoid explanatory phrases such as what X knows about Y, why X behaves this way, or how X got the job.
+
+Use the shortest natural cue that preserves the intended retrieval context. Do not distort source meaning merely to shorten a cue.
 
 TARGET
 target may contain only a specific person, a named group, or a clearly defined person/group reference such as {{user}}, parents, family, team, or employer. Otherwise use "".
@@ -117,8 +119,7 @@ If type is knowledge, both knowledge fields must not be none, the rule must expl
 
 If type is not knowledge, both knowledge fields must be none.
 
-FINAL VALIDATION
-Before returning JSON, rewrite any record whose when cue exceeds 4 words, when uses a profile/category label, target is not a valid person/group target, or knowledge fields conflict with type. Do not return until every record satisfies these constraints.`;
+Before returning JSON, verify that knowledge fields agree with type.`;
 
 function compilerPromptFor(model){ return String(model||'').toLowerCase().includes('gemini')?BASE_COMPILER_PROMPT:BASE_COMPILER_PROMPT+'\n\n'+NON_GEMINI_STRICT_ADAPTER; }
 
@@ -132,6 +133,11 @@ const BASE_SCHEMA = {
   }, required:['type','target','when','rule','modality','basis','source_ids','knowledge_domain','knowledge_state'], additionalProperties:false }}},
   required:['records'], additionalProperties:false
 };
+const REPAIR_SCHEMA = {
+  type:'object', properties:{when:{type:'array',minItems:1,maxItems:5,items:{type:'string'}}},
+  required:['when'], additionalProperties:false
+};
+const REPAIR_SYSTEM_PROMPT = `Repair only the retrieval cue array requested by the user. Preserve the existing record's meaning and use only its cited source material. Return only the JSON object required by the schema with a when array. Do not return or revise any other field.`;
 
 function ctx(){ return SillyTavern.getContext(); }
 function esc(v){ return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
@@ -198,7 +204,7 @@ async function copyText(v){
   if(!v)return;
   try{await navigator.clipboard.writeText(v);}catch{const a=document.createElement('textarea');a.value=v;a.style.position='fixed';a.style.left='-9999px';dlg.append(a);a.select();document.execCommand('copy');a.remove();}
 }
-function debugText(value){
+function safeJson(value){
   const seen=new WeakSet();
   return JSON.stringify(value,(key,item)=>{
     if(typeof item==='bigint')return String(item);
@@ -209,6 +215,13 @@ function debugText(value){
     }
     return item;
   },2);
+}
+function snapshot(value){ try{return structuredClone(value);}catch{try{return JSON.parse(safeJson(value));}catch{return String(value);}} }
+function traceEvent(trace,stage,data){ trace.events.push({at:new Date().toISOString(),stage,data}); }
+function debugText(value){
+  if(!Array.isArray(value?.events))return safeJson(value);
+  const head={extension:value.extension,version:value.version,started_at:value.started_at,completed_at:value.completed_at,entity_type:value.entity_type,entity_name:value.entity_name};
+  return safeJson(head)+'\n\n'+value.events.map(event=>'=== '+event.stage+' ===\n'+safeJson({at:event.at,...event.data})).join('\n\n');
 }
 async function copyDebug(k){
   const trace=debugRuns[k];
@@ -330,44 +343,103 @@ function parse(v){
   if(!v||typeof v!=='object'||Array.isArray(v))throw new Error('모델이 JSON 객체를 반환하지 않았습니다.');
   return v;
 }
-function quoted(v){ return '“'+String(v??'').replace(/\s+/g,' ').slice(0,80)+'”'; }
-function validate(r,ids){
-  if(!Array.isArray(r.records))throw new Error('records 배열이 없습니다.');
-  const ok=new Set(ids), seen=new Set(), whenErrors=[], warnings=[];
-  r.records.forEach((x,i)=>{
-    if(!TYPES.includes(x.type)||!MODES.includes(x.modality)||!BASES.includes(x.basis)||!KDOM.includes(x.knowledge_domain)||!KSTATE.includes(x.knowledge_state))throw new Error('record['+i+']: 허용되지 않은 enum 값이 있습니다.');
-    if(!Array.isArray(x.when)||!x.when.length||x.when.length>5){
-      whenErrors.push('record['+i+'].when: 1-5개 cue 배열이어야 합니다.');
-    }else{
-      const validCues=[], cueErrors=[];
-      x.when.forEach((v,j)=>{
-        let reason='';
-        if(typeof v!=='string'||!v.trim())reason='빈 문자열은 사용할 수 없습니다.';
-        else{
-          const cue=v.trim(), words=cue.split(/\s+/).length;
-          if(words>4)reason=words+'단어, 최대 4단어';
-          else if(GENERIC_WHEN.has(cue.toLowerCase()))reason='분류명은 사용할 수 없음';
-        }
-        if(reason)cueErrors.push('record['+i+'].when['+j+'] '+quoted(v)+': '+reason);
-        else validCues.push(v.trim());
-      });
-      if(cueErrors.length&&validCues.length){
-        x.when=validCues;
-        warnings.push(...cueErrors.map(v=>v+' → cue 제거'));
-      }else if(cueErrors.length)whenErrors.push(...cueErrors);
+function parseRepair(v){
+  for(let i=0;i<8;i++){
+    if(typeof v==='string'){
+      const raw=v.trim().replace(/^\uFEFF/,''), fenced=raw.match(/^(?:\x60){3}(?:json)?\s*([\s\S]*?)(?:\x60){3}$/i);
+      v=JSON.parse((fenced?fenced[1]:raw).trim());
+      continue;
     }
-    if(!Array.isArray(x.source_ids)||!x.source_ids.length||x.source_ids.some(id=>!ok.has(id)))throw new Error('record['+i+']: 존재하지 않는 source_id가 있습니다.');
+    if(Array.isArray(v)){
+      if(v.every(x=>typeof x==='string')){
+        const joined=v.join('').trim();
+        if(/^[{[]/.test(joined)){v=joined;continue;}
+        return {when:v};
+      }
+      const text=v.map(x=>typeof x==='string'?x:(x?.text||'')).join('').trim();
+      if(text){v=text;continue;}
+      break;
+    }
+    if(v&&typeof v==='object'){
+      if(Array.isArray(v.when))return v;
+      const nested=Object.values(v).find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&Array.isArray(x.when));
+      if(nested)return nested;
+      const key=['content','output','result','data','json','response','text'].find(x=>v[x]!==undefined&&v[x]!==v);
+      if(key){v=v[key];continue;}
+    }
+    break;
+  }
+  throw new Error('repair 응답에 when 배열이 없습니다.');
+}
+const RECORD_FIELDS = ['type','target','when','rule','modality','basis','source_ids','knowledge_domain','knowledge_state'];
+function hardValidate(r,ids){
+  if(!r||typeof r!=='object'||Array.isArray(r)||!Array.isArray(r.records))throw new Error('records 배열이 없습니다.');
+  const ok=new Set(ids);
+  r.records.forEach((x,i)=>{
+    if(!x||typeof x!=='object'||Array.isArray(x))throw new Error('record['+i+']: 객체가 아닙니다.');
+    const missing=RECORD_FIELDS.filter(key=>!Object.prototype.hasOwnProperty.call(x,key));
+    if(missing.length)throw new Error('record['+i+']: required field 누락 · '+missing.join(', '));
+    if(!TYPES.includes(x.type)||!MODES.includes(x.modality)||!BASES.includes(x.basis)||!KDOM.includes(x.knowledge_domain)||!KSTATE.includes(x.knowledge_state))throw new Error('record['+i+']: 허용되지 않은 enum 값이 있습니다.');
+    if(typeof x.target!=='string'||typeof x.rule!=='string'||!x.rule.trim())throw new Error('record['+i+']: target/rule 문자열 구조가 잘못되었습니다.');
+    if(!Array.isArray(x.when)||x.when.length>5||x.when.some(v=>typeof v!=='string'))throw new Error('record['+i+'].when: 최대 5개의 문자열 배열이어야 합니다.');
+    if(!Array.isArray(x.source_ids)||!x.source_ids.length||x.source_ids.some(id=>typeof id!=='string'||!ok.has(id)))throw new Error('record['+i+']: 존재하지 않는 source_id가 있습니다.');
     if(x.type==='knowledge'&&(x.knowledge_domain==='none'||x.knowledge_state==='none'))throw new Error('record['+i+']: knowledge 레코드에는 knowledge_domain과 knowledge_state가 필요합니다.');
     if(x.type!=='knowledge'&&(x.knowledge_domain!=='none'||x.knowledge_state!=='none'))throw new Error('record['+i+']: knowledge 이외의 레코드는 knowledge_domain과 knowledge_state가 none이어야 합니다.');
-    const key=String(x.rule||'').trim().toLowerCase();
-    if(!key)throw new Error('record['+i+']: 빈 rule이 있습니다.');
-    if(seen.has(key))warnings.push('record['+i+'].rule: 중복 rule');
-    seen.add(key);
-    const target=String(x.target||'').trim();
-    if(target&&(SUSPICIOUS_TARGETS.has(target.toLowerCase())||(Array.isArray(x.when)&&x.when.some(v=>String(v).trim().toLowerCase()===target.toLowerCase()))))warnings.push('record['+i+'].target '+quoted(target)+': 사람이나 집단이 아닌 값으로 보임');
   });
-  if(whenErrors.length)throw new Error(whenErrors.slice(0,3).join(' | ')+(whenErrors.length>3?' | 외 '+(whenErrors.length-3)+'개':''));
-  return warnings;
+}
+function whenReason(cue){
+  if(!cue)return '빈 cue';
+  const words=cue.split(/\s+/).length, lower=cue.toLowerCase();
+  if(words>6)return words+'단어, 최대 6단어';
+  if(GENERIC_WHEN.has(lower))return '분류명/profile label';
+  if(/^(?:what|why|how)\b/i.test(cue))return '설명문 형태';
+  return '';
+}
+function cleanWhenValues(values,index){
+  const valid=[], removed=[], seen=new Set();
+  for(let j=0;j<values.length;j++){
+    const cue=String(values[j]).trim().replace(/\s+/g,' '), key=cue.toLowerCase(), reason=whenReason(cue);
+    if(reason){removed.push({record_index:index,when_index:j,value:values[j],reason});continue;}
+    if(seen.has(key)){removed.push({record_index:index,when_index:j,value:values[j],reason:'중복 cue'});continue;}
+    seen.add(key); valid.push(cue);
+  }
+  return {valid,removed};
+}
+function validate(r,ids){
+  hardValidate(r,ids);
+  const removed=[], repairIndexes=[];
+  r.records.forEach((record,index)=>{
+    const cleaned=cleanWhenValues(record.when,index);
+    removed.push(...cleaned.removed);
+    if(cleaned.valid.length)record.when=cleaned.valid;
+    else repairIndexes.push(index);
+  });
+  return {removed,repairIndexes};
+}
+function repairInput(index,record,cited){
+  return 'RECORD INDEX: '+index+'\n\nCURRENT RECORD:\n'+safeJson(record)+'\n\nCITED SOURCES:\n'+cited.map(x=>'['+x.id+' | '+x.origin+' | '+x.label+']\n'+x.text).join('\n\n')+'\n\nTASK:\nRegenerate only the when array.\n\nRequirements:\n- 1-5 cues\n- prefer 1-4 words each\n- maximum 6 words\n- concrete retrieval situations, actions, triggers, states, relationship situations, recurring circumstances, or discussion topics\n- no profile/category labels\n- no explanatory sentences\n- preserve the meaning of the existing record\n- do not modify or reinterpret any other field\n\nReturn only: {"when":["..."]}';
+}
+async function repairWhen(p,record,index,src,trace,number){
+  const cited=src.filter(x=>record.source_ids.includes(x.id));
+  const messages=[{role:'system',content:REPAIR_SYSTEM_PROMPT},{role:'user',content:repairInput(index,record,cited)}];
+  const options={stream:false,extractData:true,includePreset:false,includeInstruct:true};
+  const custom={json_schema:{name:'repair_retrieval_when',description:'Corrected retrieval cues for one existing record.',strict:true,value:REPAIR_SCHEMA}};
+  traceEvent(trace,'REPAIR REQUEST #'+number,{record_index:index,cited_sources:cited,request:{profile_id:p.id,messages,max_output_tokens:REPAIR_MAX_OUTPUT_TOKENS,options,custom}});
+  let res;
+  try{
+    res=await service.sendRequest(p.id,messages,REPAIR_MAX_OUTPUT_TOKENS,options,custom);
+    traceEvent(trace,'REPAIR RESPONSE #'+number,{record_index:index,raw_response:snapshot(res)});
+    const parsed=parseRepair(res?.content??res);
+    if(!Array.isArray(parsed.when)||!parsed.when.length||parsed.when.length>5||parsed.when.some(v=>typeof v!=='string'))throw new Error('when은 1-5개의 문자열 배열이어야 합니다.');
+    const cleaned=cleanWhenValues(parsed.when,index);
+    if(!cleaned.valid.length)throw new Error('반환된 when cue가 모두 무효입니다: '+safeJson(cleaned.removed));
+    record.when=cleaned.valid;
+    traceEvent(trace,'REPAIR VALIDATION #'+number,{record_index:index,accepted:true,accepted_when:cleaned.valid,removed_when_cues:cleaned.removed});
+    return cleaned.removed;
+  }catch(e){
+    traceEvent(trace,'REPAIR VALIDATION #'+number,{record_index:index,accepted:false,reason:String(e?.message||e),returned_value:snapshot(res??null)});
+    throw new Error('record['+index+'].when repair 실패: '+String(e?.message||e)+' · 반환값 '+safeJson(res??null).slice(0,500));
+  }
 }
 
 async function compile(k){
@@ -376,7 +448,7 @@ async function compile(k){
   const src=sources(k,text,k==='npc'?[]:chosenLore(k));
   if(!src.length){status(k,'시트 원문이나 선택한 로어북 항목이 필요합니다.',true);return;}
   const requestText=input(k,name,src);
-  const trace=debugRuns[k]={extension:EXT,version:EXT_VERSION,started_at:new Date().toISOString(),completed_at:null,entity_type:k,entity_name:name,profile:null,request:null,raw_response:null,parsed_response:null,validation_warnings:[],error:null};
+  const trace=debugRuns[k]={extension:EXT,version:EXT_VERSION,started_at:new Date().toISOString(),completed_at:null,entity_type:k,entity_name:name,events:[]};
   btn.disabled=true;
   if(debugBtn)debugBtn.disabled=true;
   status(k,'연결 프로필 확인 중…');
@@ -388,23 +460,30 @@ async function compile(k){
     const messages=[{role:'system',content:compilerPrompt},{role:'user',content:requestText}];
     const options={stream:false,extractData:true,includePreset:false,includeInstruct:true};
     const custom={json_schema:{name:'character_retrieval_records',description:'Source-grounded atomic character retrieval records.',strict:true,value:schema(src.map(x=>x.id))}};
-    trace.profile={id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')};
-    trace.request={profile_id:p.id,messages,max_output_tokens:MAX_OUTPUT_TOKENS,options,custom};
+    const profileInfo={id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')};
+    traceEvent(trace,'INITIAL REQUEST',{profile:profileInfo,request:{profile_id:p.id,messages,max_output_tokens:MAX_OUTPUT_TOKENS,options,custom}});
     const res=await service.sendRequest(p.id,messages,MAX_OUTPUT_TOKENS,options,custom);
-    trace.raw_response=res;
-    const r=parse(res?.content??res), warnings=validate(r,src.map(x=>x.id)), used=new Set(r.records.flatMap(x=>x.source_ids));
-    trace.parsed_response=r;
-    trace.validation_warnings=warnings;
+    traceEvent(trace,'INITIAL RESPONSE',{raw_response:snapshot(res)});
+    const r=parse(res?.content??res), validation=validate(r,src.map(x=>x.id));
+    traceEvent(trace,'LOCAL VALIDATION',{removed_when_cues:validation.removed,records_requiring_repair:validation.repairIndexes.map(index=>({record_index:index,record:snapshot(r.records[index])}))});
+    const repairRemoved=[];
+    for(let n=0;n<validation.repairIndexes.length;n++){
+      const index=validation.repairIndexes[n];
+      status(k,'when 복구 중 · '+(n+1)+'/'+validation.repairIndexes.length+' · record['+index+']');
+      repairRemoved.push(...await repairWhen(p,r.records[index],index,src,trace,n+1));
+    }
+    hardValidate(r,src.map(x=>x.id));
+    const used=new Set(r.records.flatMap(x=>x.source_ids));
     const out={entity_type:k,entity_name:name,records:r.records};
-    currentRuns[k]={compiled_at:new Date().toISOString(),output:out,profile:{id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')},sources:src.filter(x=>used.has(x.id)).map(x=>({id:x.id,origin:x.origin,label:x.label,text:x.text}))};
+    currentRuns[k]={compiled_at:new Date().toISOString(),output:out,profile:profileInfo,sources:src.filter(x=>used.has(x.id)).map(x=>({id:x.id,origin:x.origin,label:x.label,text:x.text}))};
     document.getElementById('cr-'+k+'-output').value=JSON.stringify(out,null,2);
     document.getElementById('cr-'+k+'-result').hidden=false;
     renderSources(k,currentRuns[k].sources,r.records);
-    if(warnings.length)console.warn('['+EXT+'] validation warnings',warnings);
-    status(k,r.records.length+'개 레코드 생성'+(warnings.length?' · 검토 경고 '+warnings.length+'개 · '+warnings[0]:''));
+    traceEvent(trace,'FINAL RESULT',{local_cleanup_count:validation.removed.length+repairRemoved.length,repair_count:validation.repairIndexes.length,result:out});
+    status(k,r.records.length+'개 레코드 생성'+(validation.removed.length+repairRemoved.length?' · when 정리 '+(validation.removed.length+repairRemoved.length)+'개':'')+(validation.repairIndexes.length?' · repair '+validation.repairIndexes.length+'개':''));
   }catch(e){
     console.error('['+EXT+'] compile failed',e);
-    trace.error=e;
+    traceEvent(trace,'ERROR',{error:e});
     const message=String(e?.cause?.message||e?.message||e);
     status(k,'실패: '+(/Unexpected end|unterminated|end of JSON/i.test(message)?'모델 출력이 중간에 잘렸습니다. 선택한 로어북 항목을 줄여 다시 시도하세요.':message),true);
   }finally{
