@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={PROMPT,validate,sameEntity,saveResult,savedResults};';
+const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={PROMPT,validate,sameEntity,saveResult,savedResults,setLoreSelected};';
 const context = { console, structuredClone, globalThis: null };
 context.globalThis = context;
 vm.runInNewContext(script, context);
 
-const { PROMPT, validate, sameEntity, saveResult, savedResults } = context.__test;
+const { PROMPT, validate, sameEntity, saveResult, savedResults, setLoreSelected } = context.__test;
 const base = {
   type: 'knowledge', target: 'Lucas', when: ['secret identity'],
   rule: 'Lucas knows the secret.', modality: 'fact', basis: 'explicit',
@@ -28,6 +28,19 @@ saveResult({ output: { entity_type: 'character', entity_name: 'Lucas', records: 
 saveResult({ output: { entity_type: 'character', entity_name: 'lucas', records: [base, base] }, sources: [], profile: null });
 assert.equal(savedResults().length, 1);
 assert.equal(savedResults()[0].output.records.length, 2);
+
+const attributes = new Map([['aria-pressed', 'false']]);
+const classes = new Set();
+const loreRow = {
+  setAttribute: (key, value) => attributes.set(key, value),
+  classList: { toggle: (name, on) => on ? classes.add(name) : classes.delete(name) },
+};
+setLoreSelected(loreRow, true);
+assert.equal(attributes.get('aria-pressed'), 'true');
+assert.equal(classes.has('selected'), true);
+setLoreSelected(loreRow, false);
+assert.equal(attributes.get('aria-pressed'), 'false');
+assert.equal(classes.has('selected'), false);
 
 for (const required of [
   'AUTHORIAL / META DIRECTIVES',
