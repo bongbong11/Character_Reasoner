@@ -1,0 +1,205 @@
+#character-reasoner-dialog {
+    position: fixed;
+    inset: 0;
+    width: min(760px, calc(100vw - 24px));
+    height: min(860px, calc(100dvh - 24px));
+    max-width: none;
+    max-height: none;
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    color: var(--SmartThemeBodyColor);
+    background: var(--SmartThemeBlurTintColor, var(--SmartThemeBotMesBlurTintColor));
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 14px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .48);
+}
+
+#character-reasoner-dialog::backdrop {
+    background: rgba(0, 0, 0, .64);
+    backdrop-filter: blur(3px);
+}
+
+#character-reasoner-dialog * { box-sizing: border-box; }
+#character-reasoner-dialog [hidden] { display: none !important; }
+
+#character-reasoner-dialog .cr-shell {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    height: 100%;
+}
+
+#character-reasoner-dialog .cr-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 15px 10px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+#character-reasoner-dialog .cr-title h2,
+#character-reasoner-dialog .cr-title p { margin: 0; }
+#character-reasoner-dialog .cr-title h2 { font-size: 1.15rem; }
+#character-reasoner-dialog .cr-title p { margin-top: 3px; opacity: .72; font-size: .82rem; }
+
+#character-reasoner-dialog .cr-icon-button {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 50%;
+    color: inherit;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, transparent);
+    cursor: pointer;
+}
+
+#character-reasoner-dialog .cr-profile {
+    padding: 8px 13px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    font-size: .82rem;
+    opacity: .82;
+    overflow-wrap: anywhere;
+}
+
+#character-reasoner-dialog .cr-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    padding: 8px 11px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+#character-reasoner-dialog .cr-tabs button {
+    min-height: 36px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 8px;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+}
+
+#character-reasoner-dialog .cr-tabs button.active {
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 22%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--SmartThemeQuoteColor) 45%, var(--SmartThemeBorderColor));
+    font-weight: 700;
+}
+
+#character-reasoner-dialog .cr-main { min-height: 0; overflow: hidden; }
+#character-reasoner-dialog .cr-panel {
+    display: none;
+    height: 100%;
+    padding: 13px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+#character-reasoner-dialog .cr-panel.active { display: block; }
+
+#character-reasoner-dialog .cr-card {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 5%, transparent);
+}
+
+#character-reasoner-dialog label { font-weight: 700; }
+#character-reasoner-dialog input,
+#character-reasoner-dialog textarea,
+#character-reasoner-dialog button {
+    color: var(--SmartThemeBodyColor);
+    touch-action: manipulation;
+}
+#character-reasoner-dialog input,
+#character-reasoner-dialog textarea {
+    width: 100%;
+    background-color: var(--SmartThemeBlurTintColor, var(--SmartThemeBotMesBlurTintColor));
+    border-color: var(--SmartThemeBorderColor);
+}
+#character-reasoner-dialog textarea { resize: vertical; min-height: 180px; }
+#character-reasoner-dialog .cr-output { min-height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; }
+
+#character-reasoner-dialog .cr-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#character-reasoner-dialog .menu_button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 8px 13px;
+    color: var(--SmartThemeBodyColor);
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, var(--SmartThemeBlurTintColor));
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+#character-reasoner-dialog .cr-compile { min-width: 150px; }
+#character-reasoner-dialog .cr-status { min-height: 1.3em; opacity: .76; font-size: .82rem; overflow-wrap: anywhere; }
+#character-reasoner-dialog .cr-help { margin: 0; opacity: .7; font-size: .82rem; line-height: 1.45; }
+
+#character-reasoner-dialog .cr-lore-list {
+    display: grid;
+    gap: 7px;
+    max-height: 260px;
+    padding: 2px;
+    overflow-y: auto;
+}
+
+#character-reasoner-dialog .cr-lore-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    padding: 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 4%, transparent);
+    cursor: pointer;
+}
+
+#character-reasoner-dialog .cr-lore-item input {
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: var(--SmartThemeQuoteColor);
+}
+
+#character-reasoner-dialog .cr-lore-title { display: block; font-size: .88rem; font-weight: 700; overflow-wrap: anywhere; }
+#character-reasoner-dialog .cr-lore-preview { display: block; margin-top: 3px; opacity: .68; font-size: .78rem; line-height: 1.35; overflow-wrap: anywhere; }
+
+#character-reasoner-quick-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    cursor: pointer;
+    opacity: .78;
+    touch-action: manipulation;
+}
+#character-reasoner-quick-button:hover,
+#character-reasoner-quick-button:focus-visible { opacity: 1; }
+
+@media (max-width: 600px) {
+    #character-reasoner-dialog {
+        width: calc(100vw - 12px);
+        height: calc(100dvh - 12px);
+        border-radius: 12px;
+    }
+    #character-reasoner-dialog .cr-header { padding: 11px 12px 9px; }
+    #character-reasoner-dialog .cr-tabs { padding: 7px; gap: 5px; }
+    #character-reasoner-dialog .cr-panel { padding: 9px; }
+    #character-reasoner-dialog .cr-card { padding: 10px; }
+    #character-reasoner-dialog .cr-row > .menu_button { flex: 1 1 140px; }
+}
