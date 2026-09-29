@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={BASE_COMPILER_PROMPT,NON_GEMINI_STRICT_ADAPTER,compilerPromptFor,MAX_OUTPUT_TOKENS,validate,parse,sameEntity,saveResult,savedResults,setLoreSelected,characterSheetText,personaSheetText,splitText,sources};';
+const script = source.replace(/jQuery\(\(\)=>[\s\S]*$/, '') + '\nglobalThis.__test={BASE_COMPILER_PROMPT,NON_GEMINI_STRICT_ADAPTER,compilerPromptFor,MAX_OUTPUT_TOKENS,debugText,validate,parse,sameEntity,saveResult,savedResults,setLoreSelected,characterSheetText,personaSheetText,splitText,sources};';
 const context = { console, structuredClone, globalThis: null };
 context.globalThis = context;
 vm.runInNewContext(script, context);
 
-const { BASE_COMPILER_PROMPT, NON_GEMINI_STRICT_ADAPTER, compilerPromptFor, MAX_OUTPUT_TOKENS, validate, parse, sameEntity, saveResult, savedResults, setLoreSelected, characterSheetText, personaSheetText, splitText, sources } = context.__test;
+const { BASE_COMPILER_PROMPT, NON_GEMINI_STRICT_ADAPTER, compilerPromptFor, MAX_OUTPUT_TOKENS, debugText, validate, parse, sameEntity, saveResult, savedResults, setLoreSelected, characterSheetText, personaSheetText, splitText, sources } = context.__test;
 const base = {
   type: 'knowledge', target: 'Lucas', when: ['secret identity'],
   rule: 'Lucas knows the secret.', modality: 'fact', basis: 'explicit',
@@ -87,5 +87,12 @@ assert.equal(compilerPromptFor('gemini-3-flash'), BASE_COMPILER_PROMPT);
 assert.equal(compilerPromptFor('openrouter/google/gemini-2.5-pro'), BASE_COMPILER_PROMPT);
 assert.ok(compilerPromptFor('qwen3').includes(NON_GEMINI_STRICT_ADAPTER));
 assert.ok(compilerPromptFor('').includes(NON_GEMINI_STRICT_ADAPTER));
+const circularTrace = { request: { messages: [{ role: 'system', content: 'full prompt' }] }, raw_response: { content: 'raw output' }, error: new Error('test failure') };
+circularTrace.self = circularTrace;
+const copiedTrace = debugText(circularTrace);
+assert.match(copiedTrace, /full prompt/);
+assert.match(copiedTrace, /raw output/);
+assert.match(copiedTrace, /test failure/);
+assert.match(copiedTrace, /\[Circular\]/);
 
 console.log('Character Reasoner regression checks passed.');

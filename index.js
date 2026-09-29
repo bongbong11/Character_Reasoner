@@ -1,4 +1,5 @@
 const EXT = 'Character Reasoner';
+const EXT_VERSION = '0.6.2';
 const TYPES = ['fact','core','value','relationship','knowledge','reaction','expression','boundary','capability'];
 const MODES = ['fact','habit','preference','tendency','conditional','possibility','negation'];
 const BASES = ['explicit','direct_inference'];
@@ -10,6 +11,7 @@ const SETTINGS_KEY = 'characterReasoner';
 const MAX_OUTPUT_TOKENS = 12000;
 const lore = { character: [], persona: [] };
 const currentRuns = { character: null, persona: null, npc: null };
+const debugRuns = { character: null, persona: null, npc: null };
 let dlg, service, wi, personas;
 
 const BASE_COMPILER_PROMPT = `You compile character sheets and selected lorebook entries into source-grounded retrieval records, not a selective summary. Return only the JSON object required by the provided schema. The top-level JSON object must contain the required records array.
@@ -196,6 +198,24 @@ async function copyText(v){
   if(!v)return;
   try{await navigator.clipboard.writeText(v);}catch{const a=document.createElement('textarea');a.value=v;a.style.position='fixed';a.style.left='-9999px';dlg.append(a);a.select();document.execCommand('copy');a.remove();}
 }
+function debugText(value){
+  const seen=new WeakSet();
+  return JSON.stringify(value,(key,item)=>{
+    if(typeof item==='bigint')return String(item);
+    if(item instanceof Error||Object.prototype.toString.call(item)==='[object Error]')return {name:item.name,message:item.message,stack:item.stack,cause:item.cause};
+    if(item&&typeof item==='object'){
+      if(seen.has(item))return '[Circular]';
+      seen.add(item);
+    }
+    return item;
+  },2);
+}
+async function copyDebug(k){
+  const trace=debugRuns[k];
+  if(!trace){toast('아직 복사할 실행 로그가 없습니다.','warning');return;}
+  await copyText(debugText(trace));
+  toast('마지막 요청/응답 로그를 복사했습니다.','success');
+}
 async function savedAction(e){
   const button=e.target.closest('button[data-action]'), row=button?.closest('[data-id]');
   if(!button||!row)return;
@@ -351,12 +371,14 @@ function validate(r,ids){
 }
 
 async function compile(k){
-  const btn=document.getElementById('cr-'+k+'-compile'), name=String(document.getElementById('cr-'+k+'-name')?.value||'').trim(), text=String(document.getElementById('cr-'+k+'-sheet')?.value||'').trim();
+  const btn=document.getElementById('cr-'+k+'-compile'), debugBtn=document.getElementById('cr-'+k+'-debug'), name=String(document.getElementById('cr-'+k+'-name')?.value||'').trim(), text=String(document.getElementById('cr-'+k+'-sheet')?.value||'').trim();
   if(!name){status(k,'이름을 직접 입력하세요.',true);return;}
   const src=sources(k,text,k==='npc'?[]:chosenLore(k));
   if(!src.length){status(k,'시트 원문이나 선택한 로어북 항목이 필요합니다.',true);return;}
   const requestText=input(k,name,src);
+  const trace=debugRuns[k]={extension:EXT,version:EXT_VERSION,started_at:new Date().toISOString(),completed_at:null,entity_type:k,entity_name:name,profile:null,request:null,raw_response:null,parsed_response:null,validation_warnings:[],error:null};
   btn.disabled=true;
+  if(debugBtn)debugBtn.disabled=true;
   status(k,'연결 프로필 확인 중…');
   try{
     const p=await profile();
@@ -364,8 +386,15 @@ async function compile(k){
     const compilerPrompt=compilerPromptFor(p.model), estimatedTokens=Math.ceil((compilerPrompt.length+requestText.length)/4);
     status(k,'컴파일 중 · '+src.length+'개 source · 입력 약 '+estimatedTokens.toLocaleString()+' tokens');
     const messages=[{role:'system',content:compilerPrompt},{role:'user',content:requestText}];
-    const res=await service.sendRequest(p.id,messages,MAX_OUTPUT_TOKENS,{stream:false,extractData:true,includePreset:false,includeInstruct:true},{json_schema:{name:'character_retrieval_records',description:'Source-grounded atomic character retrieval records.',strict:true,value:schema(src.map(x=>x.id))}});
+    const options={stream:false,extractData:true,includePreset:false,includeInstruct:true};
+    const custom={json_schema:{name:'character_retrieval_records',description:'Source-grounded atomic character retrieval records.',strict:true,value:schema(src.map(x=>x.id))}};
+    trace.profile={id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')};
+    trace.request={profile_id:p.id,messages,max_output_tokens:MAX_OUTPUT_TOKENS,options,custom};
+    const res=await service.sendRequest(p.id,messages,MAX_OUTPUT_TOKENS,options,custom);
+    trace.raw_response=res;
     const r=parse(res?.content??res), warnings=validate(r,src.map(x=>x.id)), used=new Set(r.records.flatMap(x=>x.source_ids));
+    trace.parsed_response=r;
+    trace.validation_warnings=warnings;
     const out={entity_type:k,entity_name:name,records:r.records};
     currentRuns[k]={compiled_at:new Date().toISOString(),output:out,profile:{id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')},sources:src.filter(x=>used.has(x.id)).map(x=>({id:x.id,origin:x.origin,label:x.label,text:x.text}))};
     document.getElementById('cr-'+k+'-output').value=JSON.stringify(out,null,2);
@@ -375,14 +404,19 @@ async function compile(k){
     status(k,r.records.length+'개 레코드 생성'+(warnings.length?' · 검토 경고 '+warnings.length+'개 · '+warnings[0]:''));
   }catch(e){
     console.error('['+EXT+'] compile failed',e);
+    trace.error=e;
     const message=String(e?.cause?.message||e?.message||e);
     status(k,'실패: '+(/Unexpected end|unterminated|end of JSON/i.test(message)?'모델 출력이 중간에 잘렸습니다. 선택한 로어북 항목을 줄여 다시 시도하세요.':message),true);
-  }finally{btn.disabled=false;}
+  }finally{
+    trace.completed_at=new Date().toISOString();
+    btn.disabled=false;
+    if(debugBtn)debugBtn.disabled=false;
+  }
 }
 
 async function copy(k){ const v=document.getElementById('cr-'+k+'-output')?.value||''; if(!v)return; await copyText(v); toast('결과를 복사했습니다.','success'); }
-function panel(k,title,hasLore){ return '<section class="cr-panel '+(k==='character'?'active':'')+'" data-kind="'+k+'"><div class="cr-card"><label>'+title+' 이름</label><input id="cr-'+k+'-name" class="text_pole" autocomplete="off" placeholder="직접 입력"><div class="cr-row cr-sheet-heading"><label>'+title+' 시트 원본</label>'+(k!=='npc'?'<button id="cr-'+k+'-sheet-load" class="menu_button">현재 '+title+' 시트 가져오기</button>':'')+'</div><textarea id="cr-'+k+'-sheet" class="text_pole" placeholder="원본 시트를 그대로 붙여 넣으세요."></textarea></div>'+(hasLore?'<div class="cr-card"><div class="cr-row"><button id="cr-'+k+'-lore-load" class="menu_button">연결 로어북 가져오기</button><button id="cr-'+k+'-all" class="menu_button">전체 선택/해제</button></div><p class="cr-help">현재 연결된 로어북에서 체크한 항목만 함께 읽습니다.</p><div id="cr-'+k+'-lore" class="cr-lore-list"><div class="cr-help">아직 불러오지 않았습니다.</div></div></div>':'')+'<div class="cr-card"><button id="cr-'+k+'-compile" class="menu_button cr-compile">컴파일</button><div id="cr-'+k+'-status" class="cr-status">대기</div></div><div id="cr-'+k+'-result" class="cr-card" hidden><div class="cr-row"><b>결과 JSON</b><button id="cr-'+k+'-save" class="menu_button">결과 저장</button><button id="cr-'+k+'-copy" class="menu_button">결과 복사</button></div><textarea id="cr-'+k+'-output" class="text_pole cr-output" readonly></textarea><details class="cr-sources"><summary>사용된 Source 보기</summary><div id="cr-'+k+'-sources" class="cr-source-list"></div></details></div></section>'; }
-function makeDialog(){ if(dlg)return; dlg=document.createElement('dialog'); dlg.id='character-reasoner-dialog'; dlg.innerHTML='<div class="cr-shell"><header class="cr-header"><div class="cr-title"><h2>Character Reasoner</h2><p>시트 정규화 테스트 · Jev/임베딩/주입 없음</p></div><button id="cr-close" class="cr-icon-button"><i class="fa-solid fa-xmark"></i></button></header><div><div id="cr-profile" class="cr-profile">연결 프로필 확인 중…</div><nav class="cr-tabs"><button class="active" data-tab="character">캐릭터</button><button data-tab="persona">페르소나</button><button data-tab="npc">NPC</button></nav></div><main class="cr-main"><section class="cr-saved cr-card"><div class="cr-row cr-saved-header"><div><b>저장된 결과</b><p class="cr-help">결과 저장을 누른 항목만 현재 SillyTavern 사용자 설정에 남습니다.</p></div><button id="cr-delete-all" class="menu_button cr-danger">전체 삭제</button></div><div id="cr-saved-list" class="cr-saved-list"></div></section>'+panel('character','캐릭터',true)+panel('persona','페르소나',true)+panel('npc','NPC',false)+'</main></div>'; document.body.append(dlg); dlg.querySelector('#cr-close').onclick=()=>dlg.close(); dlg.querySelector('#cr-saved-list').onclick=e=>void savedAction(e); dlg.querySelector('#cr-delete-all').onclick=deleteAllSaved; dlg.querySelectorAll('.cr-tabs button').forEach(b=>b.onclick=()=>{dlg.querySelectorAll('.cr-tabs button').forEach(x=>x.classList.toggle('active',x===b));dlg.querySelectorAll('.cr-panel').forEach(x=>x.classList.toggle('active',x.dataset.kind===b.dataset.tab));}); ['character','persona','npc'].forEach(k=>{document.getElementById('cr-'+k+'-compile').onclick=()=>compile(k);document.getElementById('cr-'+k+'-save').onclick=()=>saveCurrent(k);document.getElementById('cr-'+k+'-copy').onclick=()=>copy(k);}); ['character','persona'].forEach(k=>{document.getElementById('cr-'+k+'-sheet-load').onclick=()=>void importSheet(k);document.getElementById('cr-'+k+'-lore-load').onclick=()=>loadLore(k);document.getElementById('cr-'+k+'-all').onclick=()=>{const rows=[...document.querySelectorAll('#cr-'+k+'-lore .cr-lore-item')], on=rows.some(x=>x.getAttribute('aria-pressed')!=='true');rows.forEach(x=>setLoreSelected(x,on));};}); renderSaved(); }
+function panel(k,title,hasLore){ return '<section class="cr-panel '+(k==='character'?'active':'')+'" data-kind="'+k+'"><div class="cr-card"><label>'+title+' 이름</label><input id="cr-'+k+'-name" class="text_pole" autocomplete="off" placeholder="직접 입력"><div class="cr-row cr-sheet-heading"><label>'+title+' 시트 원본</label>'+(k!=='npc'?'<button id="cr-'+k+'-sheet-load" class="menu_button">현재 '+title+' 시트 가져오기</button>':'')+'</div><textarea id="cr-'+k+'-sheet" class="text_pole" placeholder="원본 시트를 그대로 붙여 넣으세요."></textarea></div>'+(hasLore?'<div class="cr-card"><div class="cr-row"><button id="cr-'+k+'-lore-load" class="menu_button">연결 로어북 가져오기</button><button id="cr-'+k+'-all" class="menu_button">전체 선택/해제</button></div><p class="cr-help">현재 연결된 로어북에서 체크한 항목만 함께 읽습니다.</p><div id="cr-'+k+'-lore" class="cr-lore-list"><div class="cr-help">아직 불러오지 않았습니다.</div></div></div>':'')+'<div class="cr-card"><div class="cr-row"><button id="cr-'+k+'-compile" class="menu_button cr-compile">컴파일</button><button id="cr-'+k+'-debug" class="menu_button" disabled>요청/응답 로그 복사</button></div><div id="cr-'+k+'-status" class="cr-status">대기</div></div><div id="cr-'+k+'-result" class="cr-card" hidden><div class="cr-row"><b>결과 JSON</b><button id="cr-'+k+'-save" class="menu_button">결과 저장</button><button id="cr-'+k+'-copy" class="menu_button">결과 복사</button></div><textarea id="cr-'+k+'-output" class="text_pole cr-output" readonly></textarea><details class="cr-sources"><summary>사용된 Source 보기</summary><div id="cr-'+k+'-sources" class="cr-source-list"></div></details></div></section>'; }
+function makeDialog(){ if(dlg)return; dlg=document.createElement('dialog'); dlg.id='character-reasoner-dialog'; dlg.innerHTML='<div class="cr-shell"><header class="cr-header"><div class="cr-title"><h2>Character Reasoner</h2><p>시트 정규화 테스트 · Jev/임베딩/주입 없음</p></div><button id="cr-close" class="cr-icon-button"><i class="fa-solid fa-xmark"></i></button></header><div><div id="cr-profile" class="cr-profile">연결 프로필 확인 중…</div><nav class="cr-tabs"><button class="active" data-tab="character">캐릭터</button><button data-tab="persona">페르소나</button><button data-tab="npc">NPC</button></nav></div><main class="cr-main"><section class="cr-saved cr-card"><div class="cr-row cr-saved-header"><div><b>저장된 결과</b><p class="cr-help">결과 저장을 누른 항목만 현재 SillyTavern 사용자 설정에 남습니다.</p></div><button id="cr-delete-all" class="menu_button cr-danger">전체 삭제</button></div><div id="cr-saved-list" class="cr-saved-list"></div></section>'+panel('character','캐릭터',true)+panel('persona','페르소나',true)+panel('npc','NPC',false)+'</main></div>'; document.body.append(dlg); dlg.querySelector('#cr-close').onclick=()=>dlg.close(); dlg.querySelector('#cr-saved-list').onclick=e=>void savedAction(e); dlg.querySelector('#cr-delete-all').onclick=deleteAllSaved; dlg.querySelectorAll('.cr-tabs button').forEach(b=>b.onclick=()=>{dlg.querySelectorAll('.cr-tabs button').forEach(x=>x.classList.toggle('active',x===b));dlg.querySelectorAll('.cr-panel').forEach(x=>x.classList.toggle('active',x.dataset.kind===b.dataset.tab));}); ['character','persona','npc'].forEach(k=>{document.getElementById('cr-'+k+'-compile').onclick=()=>compile(k);document.getElementById('cr-'+k+'-debug').onclick=()=>copyDebug(k);document.getElementById('cr-'+k+'-save').onclick=()=>saveCurrent(k);document.getElementById('cr-'+k+'-copy').onclick=()=>copy(k);}); ['character','persona'].forEach(k=>{document.getElementById('cr-'+k+'-sheet-load').onclick=()=>void importSheet(k);document.getElementById('cr-'+k+'-lore-load').onclick=()=>loadLore(k);document.getElementById('cr-'+k+'-all').onclick=()=>{const rows=[...document.querySelectorAll('#cr-'+k+'-lore .cr-lore-item')], on=rows.some(x=>x.getAttribute('aria-pressed')!=='true');rows.forEach(x=>setLoreSelected(x,on));};}); renderSaved(); }
 async function open(){ makeDialog(); await profile().catch(()=>{}); if(!dlg.open)dlg.showModal(); }
 function quick(){ if(document.getElementById('character-reasoner-quick-button'))return true; const e=document.getElementById('extensionsMenuButton'), h=e?.parentElement||document.getElementById('leftSendForm')||document.getElementById('rightSendForm'); if(!h)return false; const b=document.createElement('div');b.id='character-reasoner-quick-button';b.className='fa-solid fa-user interactable';b.tabIndex=0;b.title=EXT;b.setAttribute('role','button');b.onclick=()=>open();e?.nextSibling?h.insertBefore(b,e.nextSibling):h.append(b);return true; }
 async function init(){ await modules(); makeDialog(); if(!quick()){const o=new MutationObserver(()=>{if(quick())o.disconnect();});o.observe(document.body,{childList:true,subtree:true});} await profile().catch(()=>{}); console.info('['+EXT+'] loaded'); }
