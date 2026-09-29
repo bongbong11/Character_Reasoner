@@ -92,7 +92,44 @@
 }
 #character-reasoner-dialog .cr-saved-header { justify-content: space-between; }
 #character-reasoner-dialog .cr-saved-header > div { min-width: 0; }
-#character-reasoner-dialog .cr-saved-list { display: grid; gap: 7px; max-height: 240px; overflow-y: auto; }
+#character-reasoner-dialog .cr-saved-list { display: grid; gap: 7px; max-height: 330px; overflow-y: auto; }
+#character-reasoner-dialog .cr-saved-group {
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
+    border-radius: 9px;
+    overflow: hidden;
+}
+#character-reasoner-dialog .cr-saved-group > summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    cursor: pointer;
+}
+#character-reasoner-dialog .cr-saved-group > summary small { opacity: .7; text-align: right; }
+#character-reasoner-dialog .cr-tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: .73rem;
+    font-weight: 800;
+}
+#character-reasoner-dialog .cr-tag-character { background: rgba(79, 195, 247, .2); }
+#character-reasoner-dialog .cr-tag-persona { background: rgba(186, 104, 200, .22); }
+#character-reasoner-dialog .cr-tag-npc { background: rgba(255, 183, 77, .22); }
+#character-reasoner-dialog .cr-group-tools { padding: 0 10px 8px; }
+#character-reasoner-dialog .cr-version {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 10px;
+    border-top: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 55%, transparent);
+}
+#character-reasoner-dialog .cr-version > div:first-child { display: grid; gap: 2px; min-width: 0; }
+#character-reasoner-dialog .cr-version small { opacity: .7; overflow-wrap: anywhere; }
 #character-reasoner-dialog .cr-saved-item {
     display: flex;
     align-items: center;
@@ -164,6 +201,14 @@
     flex-wrap: wrap;
     gap: 8px;
 }
+#character-reasoner-dialog .cr-role { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 7px; }
+#character-reasoner-dialog .cr-role label { display: inline-flex; align-items: center; gap: 5px; font-weight: 500; }
+#character-reasoner-dialog .cr-role input { width: auto; margin: 0; }
+#character-reasoner-dialog .cr-import { transition: outline-color .15s, background-color .15s; }
+#character-reasoner-dialog .cr-import.dragging {
+    outline: 2px solid var(--SmartThemeQuoteColor);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 12%, transparent);
+}
 #character-reasoner-dialog .cr-sheet-heading { justify-content: space-between; }
 #character-reasoner-dialog .cr-sheet-heading label { flex: 1 1 auto; }
 #character-reasoner-dialog .cr-sheet-heading .menu_button { min-height: 34px; padding: 5px 10px; }
@@ -184,7 +229,7 @@
 }
 
 #character-reasoner-dialog .cr-compile { min-width: 150px; }
-#character-reasoner-dialog .cr-status { min-height: 1.3em; opacity: .76; font-size: .82rem; overflow-wrap: anywhere; }
+#character-reasoner-dialog .cr-status { min-height: 1.3em; opacity: .82; font-size: .82rem; overflow-wrap: anywhere; white-space: pre-wrap; }
 #character-reasoner-dialog .cr-help { margin: 0; opacity: .7; font-size: .82rem; line-height: 1.45; }
 
 #character-reasoner-dialog .cr-lore-list {
@@ -262,6 +307,9 @@
     #character-reasoner-dialog .cr-tabs { padding: 7px; gap: 5px; }
     #character-reasoner-dialog .cr-saved { margin: 9px 9px 0; }
     #character-reasoner-dialog .cr-saved-item { align-items: stretch; flex-direction: column; }
+    #character-reasoner-dialog .cr-saved-group > summary { grid-template-columns: auto minmax(0, 1fr); }
+    #character-reasoner-dialog .cr-saved-group > summary small { grid-column: 1 / -1; text-align: left; }
+    #character-reasoner-dialog .cr-version { align-items: stretch; flex-direction: column; }
     #character-reasoner-dialog .cr-saved-actions .menu_button { flex: 1 1 70px; }
     #character-reasoner-dialog .cr-panel { padding: 9px; }
     #character-reasoner-dialog .cr-card { padding: 10px; }
