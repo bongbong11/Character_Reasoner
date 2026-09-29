@@ -143,6 +143,20 @@
 }
 #character-reasoner-dialog textarea { resize: vertical; min-height: 180px; }
 #character-reasoner-dialog .cr-output { min-height: 260px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; }
+#character-reasoner-dialog .cr-sources summary { padding: 6px 0; cursor: pointer; font-weight: 700; }
+#character-reasoner-dialog .cr-source-list { display: grid; gap: 8px; margin-top: 4px; }
+#character-reasoner-dialog .cr-source-item {
+    padding: 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
+    border-radius: 8px;
+}
+#character-reasoner-dialog .cr-source-item pre {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    line-height: 1.45;
+}
 
 #character-reasoner-dialog .cr-row {
     display: flex;
