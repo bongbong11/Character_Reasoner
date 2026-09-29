@@ -10,7 +10,7 @@ const lore = { character: [], persona: [] };
 const currentRuns = { character: null, persona: null, npc: null };
 let dlg, service, wi, personas;
 
-const PROMPT = `You compile character sheets and selected lorebook entries into source-grounded retrieval records, not a selective summary. Return only the JSON object required by the provided schema.
+const PROMPT = `You compile character sheets and selected lorebook entries into source-grounded retrieval records, not a selective summary. Return only the JSON object required by the provided schema. The top-level JSON object must contain the required records array.
 
 SOURCE FIDELITY
 Preserve every distinct in-world detail about the designated entity and its relationships. Ordinary preferences, flaws, limitations and exceptions count. Remove redundant wording, not information; do not target a fixed record count.
@@ -230,7 +230,33 @@ function splitText(t){
 function sources(k,text,lb){ const a=[]; let n=1; const add=(origin,label,body)=>a.push({id:'S'+String(n++).padStart(3,'0'),origin,label,text:String(body).trim()}); for(const b of splitText(text))add(k+'_sheet',k+'_sheet',b); for(const x of lb)for(const b of splitText(x.content))add('lorebook',x.book+' · '+x.title,b); return a.filter(x=>x.text); }
 function schema(ids){ const s=structuredClone(BASE_SCHEMA); s.properties.records.items.properties.source_ids.items.enum=ids; return s; }
 function input(k,name,src){ return 'ENTITY_TYPE: '+k+'\nENTITY_NAME: '+name+'\n\nSOURCE MATERIAL\n'+src.map(x=>'['+x.id+' | '+x.origin+' | '+x.label+']\n'+x.text).join('\n\n'); }
-function parse(v){ for(let i=0;i<5;i++){ if(Array.isArray(v))v=v.map(x=>typeof x==='string'?x:(x?.text||'')).join(''); else if(v&&typeof v==='object'){ if(typeof v.text==='string')v=v.text; else if(typeof v.content==='string'||Array.isArray(v.content))v=v.content; else if(typeof v.output==='string')v=v.output; else break;} else break;} if(typeof v==='string'){ let r=v.trim().replace(/^\uFEFF/,''); const m=r.match(/^(?:\x60){3}(?:json)?\s*([\s\S]*?)(?:\x60){3}$/i); v=JSON.parse((m?m[1]:r).trim()); } if(!v||typeof v!=='object'||Array.isArray(v))throw new Error('모델이 JSON 객체를 반환하지 않았습니다.'); return v; }
+function parse(v){
+  for(let i=0;i<8;i++){
+    if(typeof v==='string'){
+      const raw=v.trim().replace(/^\uFEFF/,''), fenced=raw.match(/^(?:\x60){3}(?:json)?\s*([\s\S]*?)(?:\x60){3}$/i);
+      v=JSON.parse((fenced?fenced[1]:raw).trim());
+      continue;
+    }
+    if(Array.isArray(v)){
+      if(!v.length||v.every(x=>x&&typeof x==='object'&&('type'in x||'rule'in x)))return {records:v};
+      const text=v.map(x=>typeof x==='string'?x:(x?.text||'')).join('').trim();
+      if(text){v=text;continue;}
+      break;
+    }
+    if(v&&typeof v==='object'){
+      if(Array.isArray(v.records))return v;
+      const alias=['retrieval_records','record','items','results'].find(key=>Array.isArray(v[key]));
+      if(alias)return {records:v[alias]};
+      const nested=Object.values(v).find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&Array.isArray(x.records));
+      if(nested)return nested;
+      const key=['content','output','result','data','json','response','text'].find(x=>v[x]!==undefined&&v[x]!==v);
+      if(key){v=v[key];continue;}
+    }
+    break;
+  }
+  if(!v||typeof v!=='object'||Array.isArray(v))throw new Error('모델이 JSON 객체를 반환하지 않았습니다.');
+  return v;
+}
 function validate(r,ids){ if(!Array.isArray(r.records))throw new Error('records 배열이 없습니다.'); const ok=new Set(ids), seen=new Set(); let warn=0; for(const x of r.records){ if(!TYPES.includes(x.type)||!MODES.includes(x.modality)||!BASES.includes(x.basis)||!KDOM.includes(x.knowledge_domain)||!KSTATE.includes(x.knowledge_state))throw new Error('허용되지 않은 enum 값이 있습니다.'); if(!Array.isArray(x.when)||!x.when.length||x.when.length>5||x.when.some(v=>typeof v!=='string'||!v.trim()||v.trim().split(/\s+/).length>4||GENERIC_WHEN.has(v.trim().toLowerCase())))throw new Error('when은 1~4단어의 구체적인 장면 cue여야 합니다.'); if(!Array.isArray(x.source_ids)||!x.source_ids.length||x.source_ids.some(id=>!ok.has(id)))throw new Error('존재하지 않는 source_id가 있습니다.'); if(x.type==='knowledge'&&(x.knowledge_domain==='none'||x.knowledge_state==='none'))throw new Error('knowledge 레코드에는 knowledge_domain과 knowledge_state가 필요합니다.'); if(x.type!=='knowledge'&&(x.knowledge_domain!=='none'||x.knowledge_state!=='none'))throw new Error('knowledge 이외의 레코드는 knowledge_domain과 knowledge_state가 none이어야 합니다.'); const key=String(x.rule||'').trim().toLowerCase(); if(!key)throw new Error('빈 rule이 있습니다.'); if(seen.has(key))warn++; seen.add(key); } return warn; }
 
 async function compile(k){ const btn=document.getElementById('cr-'+k+'-compile'), name=String(document.getElementById('cr-'+k+'-name')?.value||'').trim(), text=String(document.getElementById('cr-'+k+'-sheet')?.value||'').trim(); if(!name){status(k,'이름을 직접 입력하세요.',true);return;} const src=sources(k,text,k==='npc'?[]:chosenLore(k)); if(!src.length){status(k,'시트 원문이나 선택한 로어북 항목이 필요합니다.',true);return;} btn.disabled=true; status(k,'컴파일 중 · '+src.length+'개 source'); try{ const p=await profile(); if(!p)throw new Error('연결 프로필이 없습니다.'); const messages=[{role:'system',content:PROMPT},{role:'user',content:input(k,name,src)}]; const res=await service.sendRequest(p.id,messages,6000,{stream:false,extractData:true,includePreset:false,includeInstruct:true},{json_schema:{name:'character_retrieval_records',description:'Source-grounded atomic character retrieval records.',strict:true,value:schema(src.map(x=>x.id))}}); const r=parse(res?.content??res), w=validate(r,src.map(x=>x.id)), used=new Set(r.records.flatMap(x=>x.source_ids)); const out={entity_type:k,entity_name:name,records:r.records}; currentRuns[k]={compiled_at:new Date().toISOString(),output:out,profile:{id:String(p.id||''),name:String(p.name||''),model:String(p.model||'')},sources:src.filter(x=>used.has(x.id)).map(x=>({id:x.id,origin:x.origin,label:x.label,text:x.text}))}; document.getElementById('cr-'+k+'-output').value=JSON.stringify(out,null,2); document.getElementById('cr-'+k+'-result').hidden=false; renderSources(k,currentRuns[k].sources,r.records); status(k,r.records.length+'개 레코드 생성'+(w?' · 검토 경고 '+w+'개':'')); }catch(e){console.error('['+EXT+'] compile failed',e);status(k,'실패: '+(e?.cause?.message||e?.message||e),true);}finally{btn.disabled=false;} }
