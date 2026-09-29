@@ -86,7 +86,29 @@
     font-weight: 700;
 }
 
-#character-reasoner-dialog .cr-main { min-height: 0; overflow: hidden; }
+#character-reasoner-dialog .cr-main { min-height: 0; overflow-y: auto; }
+#character-reasoner-dialog .cr-saved {
+    margin: 13px 13px 0;
+}
+#character-reasoner-dialog .cr-saved-header { justify-content: space-between; }
+#character-reasoner-dialog .cr-saved-header > div { min-width: 0; }
+#character-reasoner-dialog .cr-saved-list { display: grid; gap: 7px; max-height: 240px; overflow-y: auto; }
+#character-reasoner-dialog .cr-saved-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
+    border-radius: 8px;
+}
+#character-reasoner-dialog .cr-saved-info { display: grid; min-width: 0; gap: 3px; }
+#character-reasoner-dialog .cr-saved-info b,
+#character-reasoner-dialog .cr-saved-info small { overflow-wrap: anywhere; }
+#character-reasoner-dialog .cr-saved-info small { opacity: .7; }
+#character-reasoner-dialog .cr-saved-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#character-reasoner-dialog .cr-saved-actions .menu_button { min-height: 34px; padding: 5px 9px; }
+#character-reasoner-dialog .cr-danger { color: #ff8a80; }
 #character-reasoner-dialog .cr-panel {
     display: none;
     height: 100%;
@@ -170,6 +192,8 @@
     height: 18px;
     margin: 2px 0 0;
     accent-color: var(--SmartThemeQuoteColor);
+    pointer-events: auto !important;
+    cursor: pointer;
 }
 
 #character-reasoner-dialog .cr-lore-title { display: block; font-size: .88rem; font-weight: 700; overflow-wrap: anywhere; }
@@ -199,6 +223,9 @@
     }
     #character-reasoner-dialog .cr-header { padding: 11px 12px 9px; }
     #character-reasoner-dialog .cr-tabs { padding: 7px; gap: 5px; }
+    #character-reasoner-dialog .cr-saved { margin: 9px 9px 0; }
+    #character-reasoner-dialog .cr-saved-item { align-items: stretch; flex-direction: column; }
+    #character-reasoner-dialog .cr-saved-actions .menu_button { flex: 1 1 70px; }
     #character-reasoner-dialog .cr-panel { padding: 9px; }
     #character-reasoner-dialog .cr-card { padding: 10px; }
     #character-reasoner-dialog .cr-row > .menu_button { flex: 1 1 140px; }
