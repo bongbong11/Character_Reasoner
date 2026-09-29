@@ -173,6 +173,9 @@
     align-items: center;
     justify-content: center;
     gap: 7px;
+    writing-mode: horizontal-tb;
+    white-space: nowrap;
+    word-break: keep-all;
     min-height: 40px;
     padding: 8px 13px;
     color: var(--SmartThemeBodyColor);
@@ -262,5 +265,5 @@
     #character-reasoner-dialog .cr-saved-actions .menu_button { flex: 1 1 70px; }
     #character-reasoner-dialog .cr-panel { padding: 9px; }
     #character-reasoner-dialog .cr-card { padding: 10px; }
-    #character-reasoner-dialog .cr-row > .menu_button { flex: 1 1 140px; }
+    #character-reasoner-dialog .cr-row > .menu_button { flex: 1 1 max-content; }
 }
