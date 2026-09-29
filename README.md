@@ -90,7 +90,14 @@ API 키나 모델 정보는 저장하지 않습니다.
 
 그러므로 같은 이름의 예전 명령문 결과나 다른 인물의 JSON을 실수로 붙여넣어도 저장되지 않습니다.
 
-Hard validation은 JSON 구조, 필수 필드, enum, Source ID, knowledge 필드 계약을 확인합니다. `when`은 공백과 대소문자 중복을 정리하고 6단어 초과 cue, 분류명, 명백한 설명문 형태를 제거합니다. 한 record의 cue가 전부 제거되면 그 결과는 저장하지 않습니다. 의미가 바뀔 수 있는 `type`, `target`, 과병합·과분할은 자동 수정하지 않습니다.
+Hard validation은 JSON 구조, 필수 필드, enum, Source ID, knowledge 필드 계약을 확인합니다. `when`은 공백과 대소문자 중복을 정리하고 6단어 초과 cue, 분류명, 명백한 설명문 형태를 제거합니다. 한 record의 cue가 전부 제거되면 그 결과는 저장하지 않습니다.
+
+외부 AI가 modality 값을 type 자리에 넣은 것이 명백한 두 경우는 enum 검사 전에 로컬에서 보정합니다.
+
+- `type: "preference"` → `type: "core"`
+- `type: "habit"` → `type: "core"`
+
+`modality` 값은 바꾸지 않으며 보정 내역은 날짜별 저장본의 `import_log.normalizations`와 브라우저 콘솔에 남습니다. `tendency`, `conditional`, `possibility`, `negation` 등이 type 자리에 들어오면 의미를 추측하지 않고 기존 enum 오류로 저장을 중단합니다. 그 밖에 의미가 바뀔 수 있는 `type`, `target`, 과병합·과분할도 자동 수정하지 않습니다.
 
 ## 범위
 

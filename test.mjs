@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const source = fs.readFileSync(new URL('./index.js', import.meta.url), 'utf8');
 const exported = [
   'COMPILER_PROMPT','PERSONA_GUIDANCE','npcGuidance','characterInfo',
-  'splitText','buildSources','promptText','extractJsonObject','cleanWhen',
+  'splitText','buildSources','promptText','extractJsonObject','cleanWhen','normalizeRecordTypes',
   'hardValidateRecords','validateImport','saveVersion','allSaved',
   'deleteVersion','findGroup','setLoreSelected'
 ].join(',');
@@ -22,13 +22,15 @@ vm.runInNewContext(script,context);
 
 const {
   COMPILER_PROMPT,PERSONA_GUIDANCE,npcGuidance,characterInfo,splitText,buildSources,
-  promptText,extractJsonObject,cleanWhen,hardValidateRecords,validateImport,
+  promptText,extractJsonObject,cleanWhen,normalizeRecordTypes,hardValidateRecords,validateImport,
   saveVersion,allSaved,deleteVersion,findGroup,setLoreSelected,
 }=context.__test;
 
 assert.match(COMPILER_PROMPT,/source_set_id/);
 assert.match(COMPILER_PROMPT,/Atomic does NOT mean smallest possible unit/);
 assert.match(COMPILER_PROMPT,/maximum 6/);
+assert.match(COMPILER_PROMPT,/IMPORTANT FIELD DISTINCTION/);
+assert.match(COMPILER_PROMPT,/`preference`.*MODALITY values, never record types/);
 assert.match(PERSONA_GUIDANCE,/persona represented by \{\{user\}\}/);
 assert.match(npcGuidance('antagonist'),/antagonist\/hostile/);
 
@@ -70,15 +72,37 @@ const base={
 };
 const records=[structuredClone(base)];
 hardValidateRecords(records,new Set(['S001']));
+const slotErrors=[
+  {...base,type:'preference',modality:'preference'},
+  {...base,type:'habit',modality:'habit'},
+];
+const normalizationLog=normalizeRecordTypes(slotErrors);
+assert.deepEqual(Array.from(slotErrors,x=>x.type),['core','core']);
+assert.deepEqual(Array.from(slotErrors,x=>x.modality),['preference','habit']);
+assert.equal(JSON.stringify(normalizationLog),JSON.stringify([
+  {record_index:0,field:'type',from:'preference',to:'core',reason:'modality value used as record type'},
+  {record_index:1,field:'type',from:'habit',to:'core',reason:'modality value used as record type'},
+]));
 assert.throws(()=>hardValidateRecords([{...base,type:'fact'}],new Set(['S001'])),/knowledge 이외/);
 assert.throws(()=>hardValidateRecords([{...base,source_ids:['S999']}],new Set(['S001'])),/존재하지 않는/);
-assert.throws(()=>hardValidateRecords([{...base,when:['personality']}],new Set(['S001'])),/유효한 cue/);
+assert.throws(()=>hardValidateRecords([{...base,when:['personality']}],new Set(['S001'])),/1~5개 문자열 배열/);
 assert.throws(()=>hardValidateRecords([{...base,extra:true}],new Set(['S001'])),/허용되지 않은/);
 
 const validImport=validateImport({
   source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',records:[base],
 },draft);
-assert.equal(validImport.records.length,1);
+assert.equal(validImport.output.records.length,1);
+const preferenceImport=validateImport({
+  source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',
+  records:[{...base,type:'preference',modality:'preference',knowledge_domain:'none',knowledge_state:'none'}],
+},draft);
+assert.equal(preferenceImport.output.records[0].type,'core');
+assert.equal(preferenceImport.output.records[0].modality,'preference');
+assert.equal(preferenceImport.import_log.normalizations[0].reason,'modality value used as record type');
+assert.throws(()=>validateImport({
+  source_set_id:'set-1',entity_type:'persona',entity_name:'Mina',
+  records:[{...base,type:'tendency',modality:'tendency',knowledge_domain:'none',knowledge_state:'none'}],
+},draft),/type: enum 위반/);
 assert.throws(()=>validateImport({source_set_id:'old',entity_type:'persona',entity_name:'Mina',records:[base]},draft),/source_set_id/);
 assert.throws(()=>validateImport({source_set_id:'set-1',entity_type:'persona',entity_name:'Other',records:[base]},draft),/대상이 일치/);
 
@@ -114,4 +138,4 @@ setLoreSelected(row,true);
 assert.equal(attributes.get('aria-pressed'),'true');
 assert.equal(classes.has('selected'),true);
 
-console.log('Character Reasoner v0.8.0 regression checks passed.');
+console.log('Character Reasoner v0.8.1 regression checks passed.');

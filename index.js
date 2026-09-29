@@ -1,5 +1,5 @@
 const EXT = 'Character Reasoner';
-const EXT_VERSION = '0.8.0';
+const EXT_VERSION = '0.8.1';
 const META_KEY = 'characterReasonerBank';
 const KINDS = ['character', 'persona', 'npc'];
 const KIND_LABEL = { character: '캐릭터', persona: '페르소나', npc: 'NPC' };
@@ -55,6 +55,12 @@ Classify the proposition itself, not its source heading.
 Persistent target-specific attitudes normally belong under relationship.
 Condition-dependent responses normally belong under reaction.
 Do not duplicate the same proposition across categories.
+
+IMPORTANT FIELD DISTINCTION
+
+\`preference\`, \`habit\`, \`tendency\`, \`conditional\`, \`possibility\`, and \`negation\` are MODALITY values, never record types.
+
+A preference or habit usually uses \`type: "core"\` unless its actual semantic function clearly belongs to relationship, reaction, expression, boundary, capability, or another allowed type.
 
 ## RETRIEVAL UNITS
 
@@ -353,7 +359,30 @@ function cleanWhen(values, index=0) {
   }
   return {valid,removed};
 }
-function hardValidateRecords(records, allowedIds) {
+function normalizeRecordTypes(records) {
+  const normalizations=[];
+  if(!Array.isArray(records))return normalizations;
+  records.forEach((record,index)=>{
+    if(!record||typeof record!=='object'||Array.isArray(record))return;
+    if(record.type!=='preference'&&record.type!=='habit')return;
+    const from=record.type;
+    record.type='core';
+    normalizations.push({record_index:index,field:'type',from,to:'core',reason:'modality value used as record type'});
+  });
+  return normalizations;
+}
+function cleanupRecordWhen(records) {
+  const removed=[];
+  if(!Array.isArray(records))return removed;
+  records.forEach((record,index)=>{
+    if(!record||typeof record!=='object'||Array.isArray(record)||!Array.isArray(record.when))return;
+    const cleaned=cleanWhen(record.when,index);
+    record.when=cleaned.valid;
+    for(const item of cleaned.removed)removed.push({record_index:index,field:'when',...item});
+  });
+  return removed;
+}
+function validateRecordSchema(records) {
   if(!Array.isArray(records))throw new Error('records 배열이 없습니다.');
   const fields=['type','target','when','rule','modality','basis','source_ids','knowledge_domain','knowledge_state'];
   records.forEach((record,index)=>{
@@ -363,36 +392,54 @@ function hardValidateRecords(records, allowedIds) {
     if(!TYPES.includes(record.type))throw new Error('record['+index+'].type: enum 위반');
     if(typeof record.target!=='string'||typeof record.rule!=='string'||!record.rule.trim())throw new Error('record['+index+']: target/rule 형식 오류');
     if(!MODES.includes(record.modality)||!BASES.includes(record.basis)||!KDOM.includes(record.knowledge_domain)||!KSTATE.includes(record.knowledge_state))throw new Error('record['+index+']: enum 위반');
+    if(!Array.isArray(record.when)||!record.when.length||record.when.length>5||record.when.some(x=>typeof x!=='string'))throw new Error('record['+index+'].when: 1~5개 문자열 배열이어야 합니다.');
     if(!Array.isArray(record.source_ids)||!record.source_ids.length)throw new Error('record['+index+'].source_ids: 비어 있거나 배열이 아닙니다.');
+  });
+}
+function validateSourceIds(records, allowedIds) {
+  records.forEach((record,index)=>{
     for(const id of record.source_ids)if(typeof id!=='string'||!allowedIds.has(id))throw new Error('record['+index+'].source_ids: 존재하지 않는 '+String(id));
+  });
+}
+function validateKnowledgeContract(records) {
+  records.forEach((record,index)=>{
     if(record.type==='knowledge'&&(record.knowledge_domain==='none'||record.knowledge_state==='none'))throw new Error('record['+index+']: knowledge 타입에는 none을 사용할 수 없습니다.');
     if(record.type!=='knowledge'&&(record.knowledge_domain!=='none'||record.knowledge_state!=='none'))throw new Error('record['+index+']: knowledge 이외 타입의 knowledge 필드는 none이어야 합니다.');
-    const cleaned=cleanWhen(record.when,index);
-    if(!cleaned.valid.length)throw new Error('record['+index+'].when: 정리 후 유효한 cue가 없습니다. 제거값: '+JSON.stringify(cleaned.removed));
-    record.when=cleaned.valid;
   });
-  return records;
+}
+function hardValidateRecords(records, allowedIds) {
+  const normalizations=normalizeRecordTypes(records);
+  const when_cleanup=cleanupRecordWhen(records);
+  validateRecordSchema(records);
+  validateSourceIds(records,allowedIds);
+  validateKnowledgeContract(records);
+  return {records,normalizations,when_cleanup};
 }
 function validateImport(value,draft) {
   if(!draft)throw new Error('먼저 분석 명령문 복사를 눌러 현재 Source 묶음을 만드세요.');
   const data=extractJsonObject(value);
+  const records=structuredClone(data.records);
+  const validation=hardValidateRecords(records,new Set(draft.sources.map(x=>x.id)));
   if(data.source_set_id!==draft.source_set_id)throw new Error('source_set_id가 현재 복사한 명령문과 다릅니다.');
   if(data.entity_type!==draft.entity_type)throw new Error('entity_type이 현재 대상과 다릅니다.');
   if(normalized(data.entity_name).toLocaleLowerCase()!==normalized(draft.entity_name).toLocaleLowerCase())throw new Error('현재 대상: '+draft.entity_name+'\n가져온 JSON: '+String(data.entity_name||'')+'\n대상이 일치하지 않아 저장하지 않았습니다.');
-  const records=structuredClone(data.records);
-  hardValidateRecords(records,new Set(draft.sources.map(x=>x.id)));
-  return {entity_type:draft.entity_type,entity_name:draft.entity_name,records};
+  return {
+    output:{entity_type:draft.entity_type,entity_name:draft.entity_name,records},
+    import_log:{normalizations:validation.normalizations,when_cleanup:validation.when_cleanup},
+  };
 }
 async function importResult(kind, raw) {
   try {
     syncChat();
     const saveName=normalized(document.getElementById('cr-'+kind+'-save-name').value);
     if(!saveName)throw new Error('저장 이름을 입력하세요. 같은 이름은 날짜별 버전으로 모입니다.');
-    const output=validateImport(raw,drafts[kind]), now=new Date().toISOString();
-    const version={id:uid(),saved_at:now,entity_name:output.entity_name,source_set_id:drafts[kind].source_set_id,source_method:'external_ai',npc_role:drafts[kind].npc_role,output,sources:structuredClone(drafts[kind].sources)};
+    const imported=validateImport(raw,drafts[kind]), output=imported.output, now=new Date().toISOString();
+    const version={id:uid(),saved_at:now,entity_name:output.entity_name,source_set_id:drafts[kind].source_set_id,source_method:'external_ai',npc_role:drafts[kind].npc_role,import_log:imported.import_log,output,sources:structuredClone(drafts[kind].sources)};
+    if(imported.import_log.normalizations.length)console.info('['+EXT+'] import normalization',structuredClone(imported.import_log.normalizations));
     saveVersion(kind,saveName,version);
     document.getElementById('cr-'+kind+'-json').value=JSON.stringify({...output,source_set_id:version.source_set_id},null,2);
-    status(kind,'✓ '+output.entity_name+' · '+output.records.length+'개 레코드를 “'+saveName+'”에 날짜별로 저장했습니다.');
+    const normalizedCount=imported.import_log.normalizations.length;
+    status(kind,'✓ '+output.entity_name+' · '+output.records.length+'개 레코드를 “'+saveName+'”에 날짜별로 저장했습니다.'+(normalizedCount?'\n명백한 type field-slot 오류 '+normalizedCount+'개를 core로 보정했습니다.':''));
     renderSaved(); toast('검증된 결과를 저장했습니다.','success');
   } catch(e){status(kind,'저장되지 않았습니다.\n'+e.message,true);toast('결과를 저장하지 못했습니다.','error');}
 }
