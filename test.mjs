@@ -34,6 +34,8 @@ assert.match(COMPILER_PROMPT,/IMPORTANT FIELD DISTINCTION/);
 assert.match(COMPILER_PROMPT,/`preference`.*MODALITY values, never record types/);
 assert.match(PERSONA_GUIDANCE,/persona represented by \{\{user\}\}/);
 assert.match(npcGuidance('antagonist'),/antagonist\/hostile/);
+assert.match(npcGuidance('ally'),/independently retrievable trait/);
+assert.doesNotMatch(npcGuidance('ally'),/usually 4-12/);
 
 const imported=characterInfo({
   characterId:0,

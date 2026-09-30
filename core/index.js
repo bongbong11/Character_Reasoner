@@ -138,7 +138,7 @@ function npcGuidance(role) {
   const labels = { ally: 'ally/supportive', antagonist: 'antagonist/hostile', mixed: 'mixed or context-dependent' };
   return `NPC ROLE IN CURRENT RP: ${labels[role] || labels.mixed}
 Treat this role only as retrieval context. Do not invent traits, motives, or relationships from the role label.
-NPC sheets are often narrower than main character sheets. Keep only source-supported details that preserve this NPC's identity, motive or priority, established relationships, expression, knowledge/access boundaries, and distinctive conditional reactions. Prefer a compact bank, usually 4-12 useful records when supported; a sparse source may yield fewer or even zero. Never fill a category, infer a backstory, or create a trait to reach a count. Do not duplicate generic world rules or another character's profile.`;
+NPC sheets are often narrower than main character sheets. Preserve only source-supported identity, motives or priorities, relationships, expression, knowledge/access boundaries, and conditional reactions. Make each independently retrievable trait its own atomic record when it may apply in a different scene; do not compress unrelated traits to meet a size target. Keep a trait's actual condition, exception, and limit with that trait. A sparse source may yield few or zero records. Never fill a category, infer a backstory, or invent a trait from the role label. Do not duplicate generic world rules or another character's profile.`;
 }
 
 function isSectionHeading(line) {
