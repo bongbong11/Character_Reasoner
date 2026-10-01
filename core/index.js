@@ -26,6 +26,7 @@ Preserve every independently useful in-world detail about the designated entity.
 Use only supplied evidence. Preserve uncertainty, degree, frequency, negation, conditions, time, target and relationship scope, AND/OR distinctions, distinctive terminology, contradictions, and ambiguity.
 
 Prefer minimal semantic rewriting. Do not strengthen, weaken, normalize, or silently correct source wording.
+Keep source-supported desire, anger, aggression, deception, manipulation, avoidance, and loyalty explicit. Do not replace a concrete trait or behavior with vague emotional complexity. A persistent tendency is not proof of present conduct.
 
 Maybe remains uncertain. Somewhat remains partial. Often is not always. Can is not will. Likes is not needs. Attraction is not love. If the source says rut, do not silently change it to heat.
 
